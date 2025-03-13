@@ -1,0 +1,29 @@
+# Source code
+src/
+
+# Development files
+.github/
+.vscode/
+.idea/
+.git/
+.gitignore
+rollup.config.js
+tsconfig.json
+jest.config.js
+.eslintrc.js
+.prettierrc
+
+# Documentation
+docs/
+examples/
+CONTRIBUTING.md
+
+# Misc
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+.env
+.env.*
+coverage/ 

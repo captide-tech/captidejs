@@ -1,0 +1,51 @@
+{
+  "name": "@captide/docviewer",
+  "version": "0.1.0",
+  "description": "Document viewer with source linking capabilities for embedded document viewing and highlighting",
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c -w",
+    "test": "jest",
+    "lint": "eslint src/**/*",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/captide-tech/captidejs.git"
+  },
+  "keywords": [
+    "document-viewer",
+    "react",
+    "document-highlighting",
+    "source-linking",
+    "sec-filings",
+    "embeddings"
+  ],
+  "author": "Captide Technologies",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/captide-tech/captidejs/issues"
+  },
+  "homepage": "https://github.com/captide-tech/captidejs#readme",
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^22.0.0",
+    "@rollup/plugin-node-resolve": "^13.3.0",
+    "@rollup/plugin-typescript": "^8.3.2",
+    "@types/react": "^18.0.9",
+    "rollup": "^2.74.1",
+    "rollup-plugin-peer-deps-external": "^2.2.4",
+    "rollup-plugin-terser": "^7.0.2",
+    "tslib": "^2.4.0",
+    "typescript": "^4.6.4"
+  }
+} 
