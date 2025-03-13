@@ -1,5 +1,5 @@
 {
-  "name": "@captide/docviewer",
+  "name": "captide-docviewer",
   "version": "0.1.1",
   "description": "Document viewer with source linking capabilities for embedded document viewing and highlighting",
   "main": "dist/index.js",
