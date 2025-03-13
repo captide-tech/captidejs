@@ -1,6 +1,6 @@
 {
-  "name": "captide-docviewer",
-  "version": "0.1.1",
+  "name": "captide",
+  "version": "0.1.2",
   "description": "Document viewer with source linking capabilities for embedded document viewing and highlighting",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
