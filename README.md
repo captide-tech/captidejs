@@ -24,11 +24,13 @@ To use Captide services, you need to obtain an API key:
 2. Include the API key in the `X-API-Key` header for all API requests to our REST API
 3. Explore our full API documentation at [https://rest-api.captide.co/docs](https://rest-api.captide.co/docs) for detailed endpoint information and testing
 
-## 🤖 Question-Answering API
+## 🖥️ Backend Setup
+
+### Question-Answering API
 
 Captide provides powerful endpoints for question-answering on SEC filings:
 
-### Using RAG Chunks
+#### Using RAG Chunks
 
 For custom answer generation with relevant document chunks:
 
@@ -71,7 +73,7 @@ async function getRelevantChunks(question) {
 }
 ```
 
-### Using Agent Query
+#### Using Agent Query
 
 For AI-powered answers based on document context:
 
@@ -107,7 +109,7 @@ async function getAgentAnswer(question) {
 }
 ```
 
-### Using Table Output Format
+#### Using Table Output Format
 
 You can also request table-formatted results:
 
@@ -157,14 +159,14 @@ async function getTableAnswer(question) {
 }
 ```
 
-## 📄 Document Viewer Integration
+### Document Viewer Integration
 
 To implement source linking, you need to fetch source documents using the API:
 
 ```javascript
 // Server-side implementation
 async function fetchDocument(sourceLink) {
-  // The sourceLink is already a complete URL from the API: see Question-Answering API section above
+  // The sourceLink is already a complete URL from the API responses above
   // Example `sourceLink`: https://rest-api.captide.co/api/v1/document?source_type=10-Q&document_id=69443120-e3a3-4ebb-91b1-a55ff2afe141
   const response = await fetch(sourceLink, {
     method: 'GET',
@@ -177,7 +179,9 @@ async function fetchDocument(sourceLink) {
 }
 ```
 
-## 🔍 Basic Usage
+## 🎨 Frontend Setup
+
+### Basic Usage
 
 ```jsx
 import React from 'react';
