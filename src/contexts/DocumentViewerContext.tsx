@@ -88,16 +88,22 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
    * Updates the DocumentViewer state
    */
   const updateDocumentViewer = useCallback((updates: Partial<DocumentViewerState>) => {
-    setState(prev => ({
-      ...prev,
-      ...updates
-    }));
+    // Use a function to update state based on previous state
+    // This ensures we're always working with the latest state
+    setState(prev => {
+      const newState = {
+        ...prev,
+        ...updates
+      };
+      return newState;
+    });
   }, []);
 
   /**
    * Sets the document
    */
   const setDocument = useCallback((document: SourceDocument | null) => {
+    // Update document state in a single atomic update
     updateDocumentViewer({
       document,
       isLoading: false,
@@ -232,8 +238,13 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
       updatedTabs.unshift(existingTab);
     }
     
-    // Update the tabs
-    updateDocumentViewer({ tabs: updatedTabs, isLoading: true });
+    // Set loading state and update tabs
+    updateDocumentViewer({ 
+      tabs: updatedTabs, 
+      isLoading: true,
+      // Clear current document to avoid any state conflicts
+      document: null 
+    });
 
     try {
       // Fetch the document using the consumer-provided function
@@ -245,10 +256,7 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
         sourceLink,
         highlightedElementId: elementId || null
       };
-
-      // Update state with the document
-      setDocument(documentWithSourceLink);
-
+      
       // Update the tab info with the loaded document data
       const updatedTabsAfterLoad = updatedTabs.map(tab => {
         if (tab.sourceLink === sourceLink) {
@@ -263,12 +271,16 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
         return tab;
       });
       
-      updateDocumentViewer({ tabs: updatedTabsAfterLoad });
+      // CRITICAL: Update everything in a single state update to avoid race conditions
+      // This ensures the document and tabs are updated atomically
+      updateDocumentViewer({ 
+        document: documentWithSourceLink,
+        tabs: updatedTabsAfterLoad, 
+        isLoading: false,
+        highlightedElementId: elementId || null 
+      });
 
-      // Set the highlight if provided
-      if (elementId) {
-        highlightElement(elementId);
-      }
+      // No need to call highlightElement separately, as we've already set the highlightedElementId
     } catch (error) {
       console.error('Failed to load document:', error);
       
@@ -289,7 +301,7 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
       
       throw error;
     }
-  }, [state.tabs, state.isOpen, updateDocumentViewer, setDocument, highlightElement, openViewer]);
+  }, [state.tabs, state.isOpen, updateDocumentViewer, openViewer]);
 
   /**
    * Add a new tab or switch to existing tab
@@ -316,7 +328,7 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
       // Add it to the front
       currentTabs.unshift(existingTab);
       
-      // Update the state
+      // Update the state with tabs first
       updateDocumentViewer({ tabs: currentTabs });
       
       // If there's a document associated with this tab, load it
@@ -325,7 +337,6 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
       }
       
       // Otherwise, load the document (using function reference rather than direct call)
-      // This breaks the circular dependency
       updateDocumentViewer({ isLoading: true });
       fetchDocumentFnRef.current?.(sourceLink)
         .then(document => {
@@ -336,10 +347,11 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
             highlightedElementId: null
           };
           
+          // IMPORTANT: Set document first, then update tabs to ensure correct tab selection
           setDocument(documentWithSourceLink);
           
           // Update the tab info with the loaded document data
-          const updatedTabs = state.tabs.map(tab => {
+          const updatedTabs = currentTabs.map(tab => {
             if (tab.sourceLink === sourceLink) {
               return {
                 ...tab,
@@ -352,7 +364,7 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
             return tab;
           });
           
-          updateDocumentViewer({ tabs: updatedTabs });
+          updateDocumentViewer({ tabs: updatedTabs, isLoading: false });
         })
         .catch(error => {
           console.error('Failed to load document:', error);
@@ -392,10 +404,11 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
             highlightedElementId: null
           };
           
+          // IMPORTANT: Set document first to ensure correct tab selection
           setDocument(documentWithSourceLink);
           
           // Update the tab info with the loaded document data
-          const updatedTabs = state.tabs.map(tab => {
+          const updatedTabs = currentTabs.map(tab => {
             if (tab.sourceLink === sourceLink) {
               return {
                 ...tab,
@@ -408,13 +421,13 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
             return tab;
           });
           
-          updateDocumentViewer({ tabs: updatedTabs });
+          updateDocumentViewer({ tabs: updatedTabs, isLoading: false });
         })
         .catch(error => {
           console.error('Failed to load document:', error);
           
           // Update the tab to show it's no longer loading
-          const updatedTabs = state.tabs.map(tab => {
+          const updatedTabs = currentTabs.map(tab => {
             if (tab.sourceLink === sourceLink) {
               return { ...tab, isLoading: false };
             }
