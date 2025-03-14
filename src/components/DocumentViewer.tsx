@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { useDocumentViewer } from '../contexts/DocumentViewerContext';
+import { SourceType } from '../types';
 
 interface DocumentViewerProps {
   /**
@@ -28,7 +29,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   className = 'w-full h-full',
   style
 }) => {
-  const { document, sourceType, highlightedElementId, isLoading } = useDocumentViewer();
+  const { document, highlightedElementId, isLoading } = useDocumentViewer();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const previousDocumentRef = useRef<string | null>(null);
   const previousSourceTypeRef = useRef<string | null>(null);
@@ -232,11 +233,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     const iframe = iframeRef.current;
     if (!iframe || !document) return;
 
-    // Add early logging to debug document type
-    console.log("DocumentViewer received document:", {
-      type: sourceType,
-      keys: Object.keys(document)
-    });
+    // Get the sourceType from the document
+    const sourceType = document.sourceType;
 
     /**
      * Finds the most relevant scroll target among multiple highlighted elements.
@@ -341,7 +339,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       if (!iframeDocument) return;
 
       // For 8-K documents, we need to highlight the correct page
-      if (sourceType === '8-K' && document.pageNumber !== undefined) {
+      if (document.sourceType === '8-K' && document.pageNumber !== undefined) {
         const pageNumber = document.pageNumber || 0; // Use 0 as default if undefined
         console.log(`Highlighting page ${pageNumber} for 8-K document`);
         
@@ -363,7 +361,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
 
           // Find the page to highlight
           // First, try to find by data-page attribute matching the pageNumber
-          let targetPage = null;
+          let targetPage: Element | null = null;
           
           // In the simplified version, data-page should match array index, so we can just use pageNumber
           // But ensure we don't go out of bounds
@@ -379,11 +377,13 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             
             // Scroll to the target page
             setTimeout(() => {
-              targetPage.scrollIntoView({ 
-                behavior: 'smooth',
-                block: 'start'
-              });
-              console.log(`Scrolled to page ${targetPageIndex}`);
+              if (targetPage) {
+                targetPage.scrollIntoView({ 
+                  behavior: 'smooth',
+                  block: 'start'
+                });
+                console.log(`Scrolled to page ${targetPageIndex}`);
+              }
             }, 100);
           } else {
             console.error(`Target page at index ${targetPageIndex} not found`);
@@ -397,7 +397,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       if (!iframeDocument) return;
 
       // Add styles specifically for 8-K documents
-      if (sourceType === '8-K') {
+      if (document.sourceType === '8-K') {
         const style = iframeDocument.createElement('style');
         style.textContent = `
           .page-highlighted {
@@ -431,7 +431,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         const currentDocId = document.sourceLink;
         
         const isNewDocument = previousDocumentRef.current !== currentDocId || 
-                             previousSourceTypeRef.current !== sourceType;
+                             previousSourceTypeRef.current !== document.sourceType;
         const delay = isNewDocument ? 500 : 0;
 
         setTimeout(() => {
@@ -450,7 +450,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             const scrollTarget = findBestScrollTarget(elementsToHighlight);
             
             if (scrollTarget) {
-              if (sourceType === 'transcript') {
+              if (document.sourceType === 'transcript') {
                 // For transcripts, we need to be more precise about scrolling
                 
                 // Get the exact position of the highlighted element
@@ -549,7 +549,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     documentIdentifier = document.sourceLink;
     
     // Special handling for 8-K documents to process page breaks
-    if (sourceType === '8-K') {
+    if (document.sourceType === '8-K') {
       htmlContent = processHtmlForPageBreaks(htmlContent);
     }
 
@@ -572,17 +572,17 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     `;
 
     if (previousDocumentRef.current !== documentIdentifier || 
-        previousSourceTypeRef.current !== sourceType) {
+        previousSourceTypeRef.current !== document.sourceType) {
       iframe.srcdoc = formattedHtmlContent;
       previousDocumentRef.current = documentIdentifier;
-      previousSourceTypeRef.current = sourceType;
+      previousSourceTypeRef.current = document.sourceType;
     } else {
       handleLoad();
     }
 
     iframe.addEventListener('load', handleLoad);
     return () => iframe.removeEventListener('load', handleLoad);
-  }, [document, sourceType, highlightedElementId]);
+  }, [document, highlightedElementId]);
 
   if (isLoading) {
     return <div className={className} style={style}>Loading document...</div>;

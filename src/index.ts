@@ -10,6 +10,9 @@ export {
 // Export types
 export type {
   SourceDocument,
+  SourceDocumentBase,
+  TabInfo,
+  SourceType,
   DocumentViewerState,
   DocumentViewerContextValue,
   FetchDocumentFn

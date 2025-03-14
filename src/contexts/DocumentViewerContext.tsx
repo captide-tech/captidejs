@@ -3,15 +3,19 @@ import {
   DocumentViewerState, 
   DocumentViewerContextValue, 
   SourceDocument,
-  FetchDocumentFn
+  FetchDocumentFn,
+  SourceDocumentBase,
+  TabInfo,
+  SourceType
 } from '../types';
 
 // Initial state for the context
 const initialState: DocumentViewerState = {
   document: null,
-  sourceType: null,
   highlightedElementId: null,
-  isLoading: false
+  isLoading: false,
+  isOpen: false,
+  tabs: []
 };
 
 // Create context with a meaningful initial undefined value to detect improper usage
@@ -24,6 +28,35 @@ DocumentViewerContext.displayName = 'DocumentViewerContext';
 interface DocumentViewerProviderProps {
   children: React.ReactNode;
   fetchDocumentFn?: FetchDocumentFn;
+}
+
+/**
+ * Extract source type from a sourceLink URL
+ * 
+ * @param sourceLink - The source link containing the source_type parameter
+ * @returns The source type value
+ * @throws Error if the sourceLink cannot be parsed or lacks a valid source_type
+ */
+function extractSourceTypeFromUrl(sourceLink: string): SourceType {
+  try {
+    const url = new URL(sourceLink);
+    const sourceTypeParam = url.searchParams.get('source_type');
+    
+    // Check if the sourceTypeParam is one of the valid SourceType values
+    if (sourceTypeParam === '10-K' || 
+        sourceTypeParam === '10-Q' || 
+        sourceTypeParam === '8-K' || 
+        sourceTypeParam === 'transcript') {
+      return sourceTypeParam;
+    }
+    
+    // Throw an error if source_type is missing or invalid
+    throw new Error(`Invalid source_type parameter in sourceLink: ${sourceTypeParam || 'missing'}`);
+  } catch (e) {
+    // Add more context to the error
+    const error = e instanceof Error ? e : new Error(String(e));
+    throw new Error(`Failed to parse sourceLink URL for determining sourceType: ${sourceLink}. ${error.message}`);
+  }
 }
 
 /**
@@ -62,13 +95,13 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
   }, []);
 
   /**
-   * Sets the document and source type
+   * Sets the document
    */
   const setDocument = useCallback((document: SourceDocument | null) => {
     updateDocumentViewer({
       document,
-      sourceType: document?.sourceType || null,
-      isLoading: false
+      isLoading: false,
+      highlightedElementId: document?.highlightedElementId || null
     });
   }, [updateDocumentViewer]);
 
@@ -86,7 +119,15 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
     }
 
     updateDocumentViewer({ highlightedElementId: elementId });
-  }, [updateDocumentViewer]);
+    
+    // Also update the document with the highlightedElementId if it exists
+    if (state.document) {
+      setDocument({
+        ...state.document,
+        highlightedElementId: elementId
+      });
+    }
+  }, [updateDocumentViewer, setDocument, state.document]);
 
   /**
    * Sets the fetch document function
@@ -96,11 +137,29 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
   }, []);
 
   /**
+   * Open the document viewer
+   */
+  const openViewer = useCallback(() => {
+    updateDocumentViewer({ isOpen: true });
+  }, [updateDocumentViewer]);
+
+  /**
+   * Close the document viewer
+   */
+  const closeViewer = useCallback(() => {
+    updateDocumentViewer({ 
+      isOpen: false,
+      document: null,
+      highlightedElementId: null
+    });
+  }, [updateDocumentViewer]);
+
+  /**
    * Loads a document and optionally highlights an element
    * This will only be called when explicitly invoked by user code,
    * never automatically during initialization.
    */
-  const loadDocument = useCallback(async (sourceLink: string, elementId?: string) => {
+  const loadDocument: (sourceLink: string, elementId?: string) => Promise<void> = useCallback(async (sourceLink: string, elementId?: string) => {
     // Validate sourceLink
     if (!sourceLink || typeof sourceLink !== 'string' || sourceLink.trim() === '') {
       throw new Error(
@@ -115,8 +174,66 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
       );
     }
 
-    // Start loading
-    updateDocumentViewer({ isLoading: true });
+    // Open the viewer if it's not already open
+    if (!state.isOpen) {
+      openViewer();
+    }
+
+    // Check if a tab already exists for this document
+    const existingTabIndex = state.tabs.findIndex(tab => tab.sourceLink === sourceLink);
+    let updatedTabs = [...state.tabs];
+    
+    if (existingTabIndex === -1) {
+      // If no tab exists, create a new one
+      try {
+        // Extract the sourceType from the URL
+        const sourceType = extractSourceTypeFromUrl(sourceLink);
+        
+        // Create a new tab with the extracted source type
+        const newTab: TabInfo = {
+          sourceLink,
+          sourceType,
+          ticker: null,
+          fiscalPeriod: null,
+          isLoading: true
+        };
+        
+        // Add the new tab to the front
+        updatedTabs.unshift(newTab);
+      } catch (error) {
+        console.error('Failed to create tab:', error);
+        
+        // Create a fallback tab with best guess for source type
+        const sourceTypeGuess: SourceType = sourceLink.includes('transcript') ? 'transcript' : '10-K';
+        
+        const fallbackTab: TabInfo = {
+          sourceLink,
+          sourceType: sourceTypeGuess,
+          ticker: 'Unknown',
+          fiscalPeriod: '',
+          isLoading: true
+        };
+        
+        // Add the fallback tab to the front
+        updatedTabs.unshift(fallbackTab);
+      }
+    } else {
+      // If the tab exists, mark it as loading
+      updatedTabs = updatedTabs.map(tab => {
+        if (tab.sourceLink === sourceLink) {
+          return { ...tab, isLoading: true };
+        }
+        return tab;
+      });
+      
+      // Move the tab to the front
+      const existingTab = updatedTabs[existingTabIndex];
+      updatedTabs.splice(existingTabIndex, 1);
+      updatedTabs.unshift(existingTab);
+    }
+    
+    // Update the tabs
+    updateDocumentViewer({ tabs: updatedTabs, isLoading: true });
 
     try {
       // Fetch the document using the consumer-provided function
@@ -125,11 +242,28 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
       // Ensure sourceLink is set on the document
       const documentWithSourceLink: SourceDocument = {
         ...document,
-        sourceLink
+        sourceLink,
+        highlightedElementId: elementId || null
       };
 
       // Update state with the document
       setDocument(documentWithSourceLink);
+
+      // Update the tab info with the loaded document data
+      const updatedTabsAfterLoad = updatedTabs.map(tab => {
+        if (tab.sourceLink === sourceLink) {
+          return {
+            ...tab,
+            sourceType: documentWithSourceLink.sourceType,
+            ticker: documentWithSourceLink.ticker,
+            fiscalPeriod: documentWithSourceLink.fiscalPeriod,
+            isLoading: false
+          };
+        }
+        return tab;
+      });
+      
+      updateDocumentViewer({ tabs: updatedTabsAfterLoad });
 
       // Set the highlight if provided
       if (elementId) {
@@ -137,14 +271,227 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
       }
     } catch (error) {
       console.error('Failed to load document:', error);
+      
+      // Update the tab to show it's no longer loading
+      const updatedTabsAfterError = updatedTabs.map(tab => {
+        if (tab.sourceLink === sourceLink) {
+          return { ...tab, isLoading: false };
+        }
+        return tab;
+      });
+      
       updateDocumentViewer({ 
         isLoading: false,
         document: null,
-        sourceType: null
+        highlightedElementId: null,
+        tabs: updatedTabsAfterError
       });
+      
       throw error;
     }
-  }, [setDocument, highlightElement, updateDocumentViewer]);
+  }, [state.tabs, state.isOpen, updateDocumentViewer, setDocument, highlightElement, openViewer]);
+
+  /**
+   * Add a new tab or switch to existing tab
+   */
+  const selectTab = useCallback((sourceLink: string) => {
+    // Validate sourceLink
+    if (!sourceLink || typeof sourceLink !== 'string' || sourceLink.trim() === '') {
+      throw new Error('Cannot select tab: sourceLink must be a non-empty string');
+    }
+
+    // Get the current tabs
+    const currentTabs = [...state.tabs];
+    
+    // Check if the tab already exists
+    const existingTabIndex = currentTabs.findIndex(tab => tab.sourceLink === sourceLink);
+    
+    if (existingTabIndex !== -1) {
+      // If the tab exists, move it to the front
+      const existingTab = currentTabs[existingTabIndex];
+      
+      // Remove the tab from its current position
+      currentTabs.splice(existingTabIndex, 1);
+      
+      // Add it to the front
+      currentTabs.unshift(existingTab);
+      
+      // Update the state
+      updateDocumentViewer({ tabs: currentTabs });
+      
+      // If there's a document associated with this tab, load it
+      if (state.document && state.document.sourceLink === sourceLink) {
+        return; // Already showing this document
+      }
+      
+      // Otherwise, load the document (using function reference rather than direct call)
+      // This breaks the circular dependency
+      updateDocumentViewer({ isLoading: true });
+      fetchDocumentFnRef.current?.(sourceLink)
+        .then(document => {
+          // Ensure sourceLink is set on the document
+          const documentWithSourceLink: SourceDocument = {
+            ...document,
+            sourceLink,
+            highlightedElementId: null
+          };
+          
+          setDocument(documentWithSourceLink);
+          
+          // Update the tab info with the loaded document data
+          const updatedTabs = state.tabs.map(tab => {
+            if (tab.sourceLink === sourceLink) {
+              return {
+                ...tab,
+                sourceType: documentWithSourceLink.sourceType,
+                ticker: documentWithSourceLink.ticker,
+                fiscalPeriod: documentWithSourceLink.fiscalPeriod,
+                isLoading: false
+              };
+            }
+            return tab;
+          });
+          
+          updateDocumentViewer({ tabs: updatedTabs });
+        })
+        .catch(error => {
+          console.error('Failed to load document:', error);
+          updateDocumentViewer({ isLoading: false });
+        });
+      
+      return;
+    }
+    
+    // If the tab doesn't exist, create a new one
+    try {
+      // Extract the sourceType from the URL
+      const sourceType = extractSourceTypeFromUrl(sourceLink);
+      
+      // Create a new tab with the extracted source type
+      const newTab: TabInfo = {
+        sourceLink,
+        sourceType,
+        ticker: null,
+        fiscalPeriod: null,
+        isLoading: true
+      };
+      
+      // Add the new tab to the front
+      currentTabs.unshift(newTab);
+      
+      // Update the state
+      updateDocumentViewer({ tabs: currentTabs, isLoading: true });
+      
+      // Load the document (using function reference rather than direct call)
+      fetchDocumentFnRef.current?.(sourceLink)
+        .then(document => {
+          // Ensure sourceLink is set on the document
+          const documentWithSourceLink: SourceDocument = {
+            ...document,
+            sourceLink,
+            highlightedElementId: null
+          };
+          
+          setDocument(documentWithSourceLink);
+          
+          // Update the tab info with the loaded document data
+          const updatedTabs = state.tabs.map(tab => {
+            if (tab.sourceLink === sourceLink) {
+              return {
+                ...tab,
+                sourceType: documentWithSourceLink.sourceType,
+                ticker: documentWithSourceLink.ticker,
+                fiscalPeriod: documentWithSourceLink.fiscalPeriod,
+                isLoading: false
+              };
+            }
+            return tab;
+          });
+          
+          updateDocumentViewer({ tabs: updatedTabs });
+        })
+        .catch(error => {
+          console.error('Failed to load document:', error);
+          
+          // Update the tab to show it's no longer loading
+          const updatedTabs = state.tabs.map(tab => {
+            if (tab.sourceLink === sourceLink) {
+              return { ...tab, isLoading: false };
+            }
+            return tab;
+          });
+          
+          updateDocumentViewer({ 
+            isLoading: false,
+            tabs: updatedTabs
+          });
+        });
+    } catch (error) {
+      console.error('Failed to create tab:', error);
+      
+      // Show error to the user (you might want to add a toast notification or error state in the UI)
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // Even with an error, we should add the tab but mark it as having an error
+      // This provides better UX by showing the user there was a problem with this tab
+      const sourceTypeGuess: SourceType = sourceLink.includes('transcript') ? 'transcript' : '10-K';
+      
+      const errorTab: TabInfo = {
+        sourceLink,
+        sourceType: sourceTypeGuess, // Best guess based on URL
+        ticker: 'ERROR',
+        fiscalPeriod: 'Failed to parse URL',
+        isLoading: false
+      };
+      
+      // Add the error tab to the front
+      currentTabs.unshift(errorTab);
+      
+      // Update the state
+      updateDocumentViewer({ tabs: currentTabs });
+      
+      // Rethrow the error to be handled by the caller
+      throw new Error(`Failed to select tab: ${errorMessage}`);
+    }
+  }, [state.tabs, state.document, updateDocumentViewer, setDocument]);
+
+  /**
+   * Close a tab
+   */
+  const closeTab = useCallback((sourceLink: string) => {
+    // Get the current tabs
+    const currentTabs = [...state.tabs];
+    
+    // Remove the tab with the given sourceLink
+    const newTabs = currentTabs.filter(tab => tab.sourceLink !== sourceLink);
+    
+    // If we're closing the current document, we need to load a different one
+    // or clear the document if there are no tabs left
+    const isCurrentDocument = state.document && state.document.sourceLink === sourceLink;
+    
+    if (isCurrentDocument) {
+      if (newTabs.length === 0) {
+        // If there are no tabs left, clear the document
+        updateDocumentViewer({
+          tabs: newTabs,
+          document: null,
+          highlightedElementId: null
+        });
+      } else {
+        // Otherwise, load the first tab
+        updateDocumentViewer({
+          tabs: newTabs,
+          isLoading: true
+        });
+        
+        // Load the document for the first tab
+        loadDocument(newTabs[0].sourceLink);
+      }
+    } else {
+      // Just update the tabs
+      updateDocumentViewer({ tabs: newTabs });
+    }
+  }, [state.tabs, state.document, updateDocumentViewer]);
 
   // Create the context value object
   const contextValue: DocumentViewerContextValue = {
@@ -153,7 +500,11 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
     setDocument,
     highlightElement,
     loadDocument,
-    setFetchDocumentFn
+    setFetchDocumentFn,
+    openViewer,
+    closeViewer,
+    selectTab,
+    closeTab
   };
 
   return (

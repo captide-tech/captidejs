@@ -1,29 +1,58 @@
 /**
  * Source document information
  */
-export interface SourceDocument {
-  /** HTML content of the document */
-  htmlContent: string;
+
+/**
+ * Defines the possible types of source documents
+ */
+export type SourceType = '10-K' | '10-Q' | '8-K' | 'transcript';
+
+/**
+ * Base source document information
+ * Contains the minimal information needed for tab management
+ */
+export interface SourceDocumentBase {
+  /** Source link (URL identifying this document) */
+  sourceLink: string;
   
   /** Type of document */
-  sourceType: '10-K' | '10-Q' | '8-K' | 'transcript';
+  sourceType: SourceType;
+  
+  /** Stock ticker symbol */
+  ticker: string | null;
+  
+  /** Fiscal period (e.g., 'Q1 2023') */
+  fiscalPeriod: string | null;
+}
+
+export interface TabInfo extends SourceDocumentBase {
+  /** Whether the tab is currently loading */
+  isLoading: boolean;
+}
+
+/**
+ * Complete source document with HTML content and additional metadata
+ */
+export interface SourceDocument extends SourceDocumentBase {
+  /** HTML content of the document */
+  htmlContent: string;
   
   /** Document date */
   date: string;
   
-  /** Fiscal period (e.g., 'Q1 2023') */
-  fiscalPeriod: string;
-  
-  /** Stock ticker symbol */
-  ticker: string;
-  
   /** Company name */
   companyName: string;
   
-  /** Source link (URL identifying this document) */
-  sourceLink: string;
+  /** Optional ID of element to highlight */
+  highlightedElementId?: string | null;
   
-  /** Optional page number for 8-K documents */
+  /** Override ticker to make it required and non-null */
+  ticker: string;
+  
+  /** Override fiscalPeriod to make it required and non-null */
+  fiscalPeriod: string;
+
+  /** Optional page number for documents where source linking is based on page number */
   pageNumber?: number;
 }
 
@@ -34,14 +63,17 @@ export interface DocumentViewerState {
   /** The document being displayed */
   document: SourceDocument | null;
   
-  /** Type of source document */
-  sourceType: string | null;
-  
-  /** ID of element to highlight (should start with #) */
-  highlightedElementId: string | null;
-  
   /** Whether document is currently loading */
   isLoading: boolean;
+  
+  /** Whether the document viewer is open */
+  isOpen: boolean;
+  
+  /** ID of element to highlight (should start with # and then an UUID of length 8) */
+  highlightedElementId: string | null;
+  
+  /** Array of tabs in the document viewer */
+  tabs: TabInfo[];
 }
 
 /**
@@ -67,4 +99,16 @@ export interface DocumentViewerContextValue extends DocumentViewerState {
   
   /** Sets the fetch document function to be used */
   setFetchDocumentFn: (fn: FetchDocumentFn) => void;
+  
+  /** Open the document viewer */
+  openViewer: () => void;
+  
+  /** Close the document viewer */
+  closeViewer: () => void;
+  
+  /** Add a new tab or switch to existing tab */
+  selectTab: (sourceLink: string) => void;
+  
+  /** Close a tab */
+  closeTab: (sourceLink: string) => void;
 } 
