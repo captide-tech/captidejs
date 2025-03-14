@@ -339,9 +339,15 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       if (!iframeDocument) return;
 
       // For 8-K documents, we need to highlight the correct page
-      if (document.sourceType === '8-K' && document.pageNumber !== undefined) {
-        const pageNumber = document.pageNumber || 0; // Use 0 as default if undefined
-        console.log(`Highlighting page ${pageNumber} for 8-K document`);
+      if (document.sourceType === '8-K' && highlightedElementId) {
+        // Extract page number from the last four digits of the highlightedElementId
+        // Format: #f2340000 where 0000 is page 1, 0001 is page 2, etc.
+        const cleanId = highlightedElementId.replace('#', '');
+        const pageNumberStr = cleanId.slice(-4);
+        // Convert the string to a number and make it zero-based (0000 -> page 0)
+        const pageNumber = parseInt(pageNumberStr, 10);
+        
+        console.log(`Highlighting page ${pageNumber} for 8-K document (extracted from ID ${highlightedElementId})`);
         
         // Find all page containers
         const pageContainers = iframeDocument.querySelectorAll('.page-container');
@@ -360,12 +366,10 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           });
 
           // Find the page to highlight
-          // First, try to find by data-page attribute matching the pageNumber
           let targetPage: Element | null = null;
           
-          // In the simplified version, data-page should match array index, so we can just use pageNumber
-          // But ensure we don't go out of bounds
-          const targetPageIndex = Math.min(pageNumber as number, pageContainers.length - 1);
+          // Ensure we don't go out of bounds
+          const targetPageIndex = Math.min(pageNumber, pageContainers.length - 1);
           targetPage = pageContainers[targetPageIndex];
           
           console.log(`Target page index: ${targetPageIndex}`);

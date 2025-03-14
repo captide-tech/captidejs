@@ -43,7 +43,7 @@ export interface SourceDocument extends SourceDocumentBase {
   /** Company name */
   companyName: string;
   
-  /** Optional ID of element to highlight */
+  /** ID of element to highlight, for 8-K documents, the last 4 digits indicate page number */
   highlightedElementId?: string | null;
   
   /** Override ticker to make it required and non-null */
@@ -51,9 +51,6 @@ export interface SourceDocument extends SourceDocumentBase {
   
   /** Override fiscalPeriod to make it required and non-null */
   fiscalPeriod: string;
-
-  /** Optional page number for documents where source linking is based on page number */
-  pageNumber?: number;
 }
 
 /**
