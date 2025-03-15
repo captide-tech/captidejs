@@ -5,7 +5,14 @@
 /**
  * Defines the possible types of source documents
  */
-export type SourceType = '10-K' | '10-Q' | '8-K' | 'transcript';
+export type SourceType = '10-K' | '10-Q' | '8-K' | 'transcript' | 'DEF 14A';
+
+// Extend the Window interface to include the highlightCaptidePage function
+declare global {
+  interface Window {
+    highlightCaptidePage?: (pageNumber: number) => boolean;
+  }
+}
 
 /**
  * Base source document information

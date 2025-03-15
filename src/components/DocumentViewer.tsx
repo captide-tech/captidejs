@@ -333,13 +333,14 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       }
     };
 
-    // Handle Load specifically for 8-K documents
-    const handle8kLoad = () => {
+    // Handle Load specifically for 8-K and DEF 14A documents
+    const handlePageBasedDocumentLoad = () => {
       const iframeDocument = iframe.contentDocument;
-      if (!iframeDocument) return;
+      const iframeWindow = iframe.contentWindow;
+      if (!iframeDocument || !iframeWindow) return;
 
-      // For 8-K documents, we need to highlight the correct page
-      if (document.sourceType === '8-K' && highlightedElementId) {
+      // For 8-K and DEF 14A documents, we need to highlight the correct page
+      if ((document.sourceType === '8-K' || document.sourceType === 'DEF 14A') && highlightedElementId) {
         // Extract page number from the last four digits of the highlightedElementId
         // Format: #f2340000 where 0000 is page 1, 0001 is page 2, etc.
         const cleanId = highlightedElementId.replace('#', '');
@@ -347,8 +348,46 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         // Convert the string to a number and make it zero-based (0000 -> page 0)
         const pageNumber = parseInt(pageNumberStr, 10);
         
-        console.log(`Highlighting page ${pageNumber} for 8-K document (extracted from ID ${highlightedElementId})`);
+        console.log(`Highlighting page ${pageNumber} for ${document.sourceType} document (extracted from ID ${highlightedElementId})`);
+
+        // For DEF 14A documents, use the injected highlightCaptidePage function
+        if (document.sourceType === 'DEF 14A') {
+          // The page numbers in captide-page are 1-based, while our internal pageNumber is 0-based
+          const oneBasedPageNumber = pageNumber + 1;
+          console.log(`Using highlightCaptidePage function for DEF 14A document with page ${oneBasedPageNumber}`);
+          
+          // Use a small timeout to ensure DOM is fully loaded
+          setTimeout(() => {
+            // Check if the highlightCaptidePage function exists
+            if (typeof iframeWindow.highlightCaptidePage === 'function') {
+              const success = iframeWindow.highlightCaptidePage(oneBasedPageNumber);
+              console.log(`Highlighted DEF 14A page ${oneBasedPageNumber} with result: ${success}`);
+            } else {
+              console.error('highlightCaptidePage function not found in iframe window');
+              
+              // Fallback: try to find elements with data-page-number attribute
+              const pageElements = iframeDocument.querySelectorAll(`.captide-page[data-page-number="${oneBasedPageNumber}"]`);
+              if (pageElements.length > 0) {
+                // Remove existing highlights
+                const existingHighlights = iframeDocument.querySelectorAll('.captide-page-highlighted');
+                existingHighlights.forEach(el => {
+                  el.classList.remove('captide-page-highlighted');
+                });
+                
+                // Highlight the first page element and scroll to it
+                pageElements[0].classList.add('captide-page-highlighted');
+                pageElements[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
+                console.log(`Fallback: highlighted DEF 14A page ${oneBasedPageNumber} manually`);
+              } else {
+                console.error(`No page elements found for DEF 14A page ${oneBasedPageNumber}`);
+              }
+            }
+          }, 200);
+          
+          return; // Exit early for DEF 14A documents
+        }
         
+        // For 8-K documents, continue with existing page container approach
         // Find all page containers
         const pageContainers = iframeDocument.querySelectorAll('.page-container');
         console.log(`Found ${pageContainers.length} page containers in the document`);
@@ -400,8 +439,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       const iframeDocument = iframe.contentDocument;
       if (!iframeDocument) return;
 
-      // Add styles specifically for 8-K documents
-      if (document.sourceType === '8-K') {
+      // Add styles specifically for 8-K and DEF 14A documents
+      if (document.sourceType === '8-K' || document.sourceType === 'DEF 14A') {
         const style = iframeDocument.createElement('style');
         style.textContent = `
           .page-highlighted {
@@ -414,11 +453,23 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             border: 1px solid #ddd;
             background-color: white;
           }
+          
+          /* Styles for DEF 14A documents with captide-page markers */
+          .captide-page-highlighted {
+            outline: 4px solid yellow;
+            outline-offset: -4px;
+          }
+          .captide-page {
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: white;
+            position: relative;
+          }
         `;
         iframeDocument.head.appendChild(style);
         
-        // Call 8-K specific handler
-        handle8kLoad();
+        // Call page-based document specific handler
+        handlePageBasedDocumentLoad();
         return;
       }
 
@@ -553,6 +604,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     documentIdentifier = document.sourceLink;
     
     // Special handling for 8-K documents to process page breaks
+    // For DEF 14A documents, keep the original HTML as it already has our custom page markers
     if (document.sourceType === '8-K') {
       htmlContent = processHtmlForPageBreaks(htmlContent);
     }

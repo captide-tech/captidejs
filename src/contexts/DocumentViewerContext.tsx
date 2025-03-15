@@ -46,7 +46,8 @@ function extractSourceTypeFromUrl(sourceLink: string): SourceType {
     if (sourceTypeParam === '10-K' || 
         sourceTypeParam === '10-Q' || 
         sourceTypeParam === '8-K' || 
-        sourceTypeParam === 'transcript') {
+        sourceTypeParam === 'transcript' ||
+        sourceTypeParam === 'DEF 14A') {
       return sourceTypeParam;
     }
     
