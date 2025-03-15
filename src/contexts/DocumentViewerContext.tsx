@@ -148,7 +148,10 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
    * Open the document viewer
    */
   const openViewer = useCallback(() => {
-    updateDocumentViewer({ isOpen: true });
+    updateDocumentViewer({ 
+      isOpen: true,
+      tabs: [] // Start with empty tabs when opening the viewer
+    });
   }, [updateDocumentViewer]);
 
   /**
@@ -158,7 +161,8 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
     updateDocumentViewer({ 
       isOpen: false,
       document: null,
-      highlightedElementId: null
+      highlightedElementId: null,
+      tabs: [] // Clear all tabs when closing the viewer
     });
   }, [updateDocumentViewer]);
 
@@ -342,17 +346,13 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
     const existingTabIndex = currentTabs.findIndex(tab => tab.sourceLink === sourceLink);
     
     if (existingTabIndex !== -1) {
-      // If the tab exists, move it to the front
-      const existingTab = currentTabs[existingTabIndex];
+      // If the tab exists, DON'T move it to the front - just select it
+      // We're removing this behavior that moved tabs:
+      // const existingTab = currentTabs[existingTabIndex];
+      // currentTabs.splice(existingTabIndex, 1);
+      // currentTabs.unshift(existingTab);
       
-      // Remove the tab from its current position
-      currentTabs.splice(existingTabIndex, 1);
-      
-      // Add it to the front
-      currentTabs.unshift(existingTab);
-      
-      // Update the state with tabs first
-      updateDocumentViewer({ tabs: currentTabs });
+      // We keep tabs in their original positions
       
       // If there's a document associated with this tab, load it
       if (state.document && state.document.sourceLink === sourceLink) {
@@ -397,7 +397,7 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
       return;
     }
     
-    // If the tab doesn't exist, create a new one
+    // If the tab doesn't exist, create a new one AND place it at the front
     try {
       // Extract the sourceType from the URL
       const sourceType = extractSourceTypeFromUrl(sourceLink);
@@ -411,7 +411,7 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
         isLoading: true
       };
       
-      // Add the new tab to the front
+      // Add the new tab to the front - we still want this behavior for new tabs
       currentTabs.unshift(newTab);
       
       // Update the state
