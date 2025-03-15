@@ -78,6 +78,9 @@ export interface DocumentViewerState {
   
   /** Array of tabs in the document viewer */
   tabs: TabInfo[];
+
+  /** Current zoom level (1.0 = 100%) */
+  zoomLevel: number;
 }
 
 /**
@@ -115,4 +118,16 @@ export interface DocumentViewerContextValue extends DocumentViewerState {
   
   /** Close a tab */
   closeTab: (sourceLink: string) => void;
+  
+  /** Set zoom level to a specific value (1.0 = 100%) */
+  setZoomLevel: (level: number) => void;
+  
+  /** Increase zoom level */
+  zoomIn: () => void;
+  
+  /** Decrease zoom level */
+  zoomOut: () => void;
+  
+  /** Reset zoom to default (100%) */
+  resetZoom: () => void;
 } 

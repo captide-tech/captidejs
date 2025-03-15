@@ -15,7 +15,8 @@ const initialState: DocumentViewerState = {
   highlightedElementId: null,
   isLoading: false,
   isOpen: false,
-  tabs: []
+  tabs: [],
+  zoomLevel: 1.0
 };
 
 // Create context with a meaningful initial undefined value to detect improper usage
@@ -184,6 +185,27 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
     // Open the viewer if it's not already open
     if (!state.isOpen) {
       openViewer();
+    }
+
+    // Check if we already have this document loaded and just need to update the highlight
+    const isCurrentDocument = state.document && state.document.sourceLink === sourceLink;
+    
+    if (isCurrentDocument) {
+      console.log('Document already loaded, just updating highlight:', sourceLink);
+      // Just update the highlightedElementId without reloading the document
+      updateDocumentViewer({ 
+        highlightedElementId: elementId || null
+      });
+      
+      // Also update the document with the highlightedElementId to keep state consistent
+      if (state.document) {
+        setDocument({
+          ...state.document,
+          highlightedElementId: elementId || null
+        });
+      }
+      
+      return;
     }
 
     // Check if a tab already exists for this document
@@ -507,6 +529,42 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
     }
   }, [state.tabs, state.document, updateDocumentViewer]);
 
+  /**
+   * Sets the zoom level
+   */
+  const setZoomLevel = useCallback((level: number) => {
+    // Constrain zoom level between reasonable bounds (25% to 200%)
+    const constrainedLevel = Math.max(0.25, Math.min(2.0, level));
+    updateDocumentViewer({ zoomLevel: constrainedLevel });
+  }, [updateDocumentViewer]);
+
+  /**
+   * Increases the zoom level by a fixed increment
+   */
+  const zoomIn = useCallback(() => {
+    // Calculate the new zoom level based on current state
+    const newZoom = Math.min(2.0, state.zoomLevel + 0.1);
+    // Update with an object, not a function
+    updateDocumentViewer({ zoomLevel: newZoom });
+  }, [updateDocumentViewer, state.zoomLevel]);
+
+  /**
+   * Decreases the zoom level by a fixed increment
+   */
+  const zoomOut = useCallback(() => {
+    // Calculate the new zoom level based on current state
+    const newZoom = Math.max(0.25, state.zoomLevel - 0.1);
+    // Update with an object, not a function
+    updateDocumentViewer({ zoomLevel: newZoom });
+  }, [updateDocumentViewer, state.zoomLevel]);
+
+  /**
+   * Resets zoom to the default level (100%)
+   */
+  const resetZoom = useCallback(() => {
+    updateDocumentViewer({ zoomLevel: 1.0 });
+  }, [updateDocumentViewer]);
+
   // Create the context value object
   const contextValue: DocumentViewerContextValue = {
     ...state,
@@ -518,7 +576,11 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
     openViewer,
     closeViewer,
     selectTab,
-    closeTab
+    closeTab,
+    setZoomLevel,
+    zoomIn,
+    zoomOut,
+    resetZoom
   };
 
   return (

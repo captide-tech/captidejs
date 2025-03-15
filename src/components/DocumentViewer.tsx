@@ -12,6 +12,12 @@ interface DocumentViewerProps {
    * Optional inline styles
    */
   style?: React.CSSProperties;
+  
+  /**
+   * Whether to show zoom controls
+   * @default true
+   */
+  showZoomControls?: boolean;
 }
 
 /**
@@ -24,15 +30,26 @@ interface DocumentViewerProps {
  * - Support for all document types (10-K/10-Q filings, 8-K documents, and earnings call transcripts)
  * - Smart element highlighting with clustering
  * - Efficient document reloading on content change
+ * - Zoom controls for adjusting document scale
  */
 const DocumentViewer: React.FC<DocumentViewerProps> = ({ 
   className = 'w-full h-full',
-  style
+  style,
+  showZoomControls = true
 }) => {
-  const { document, highlightedElementId, isLoading } = useDocumentViewer();
+  const { 
+    document, 
+    highlightedElementId, 
+    isLoading, 
+    zoomLevel,
+    zoomIn,
+    zoomOut,
+    resetZoom
+  } = useDocumentViewer();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const previousDocumentRef = useRef<string | null>(null);
   const previousSourceTypeRef = useRef<string | null>(null);
+  const previousZoomLevelRef = useRef<number>(1.0);
 
   /**
    * Process HTML content for 8-K documents to identify page breaks and create page containers
@@ -229,6 +246,82 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     return finalHtml;
   };
 
+  // Apply zoom level to the iframe content without re-rendering or reloading the document
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe || !iframe.contentDocument || !iframe.contentWindow) return;
+    
+    // Only update if the zoom level has changed
+    if (previousZoomLevelRef.current !== zoomLevel) {
+      const iframeDocument = iframe.contentDocument;
+      const iframeWindow = iframe.contentWindow;
+      
+      // Apply zoom using transform scale on the body
+      if (iframeDocument.body) {
+        // Calculate visible area dimensions
+        const viewportHeight = iframeWindow.innerHeight;
+        const viewportWidth = iframeWindow.innerWidth;
+        
+        // Store current scroll position
+        const scrollX = iframeWindow.scrollX;
+        const scrollY = iframeWindow.scrollY;
+        
+        // Calculate the center point of the current viewport in document coordinates
+        const centerX = scrollX + (viewportWidth / 2);
+        const centerY = scrollY + (viewportHeight / 2);
+        
+        // Calculate how the center point will change after scaling
+        const scaleFactor = zoomLevel / previousZoomLevelRef.current;
+        
+        // Apply the zoom transformation
+        iframeDocument.body.style.transformOrigin = 'top left';
+        iframeDocument.body.style.transform = `scale(${zoomLevel})`;
+        iframeDocument.body.style.width = `${100 / zoomLevel}%`;
+        
+        // Calculate new scroll position to keep the same point centered
+        const newCenterX = centerX * scaleFactor;
+        const newCenterY = centerY * scaleFactor;
+        
+        // Calculate new scroll position (accounting for current viewport size)
+        const newScrollX = newCenterX - (viewportWidth / 2);
+        const newScrollY = newCenterY - (viewportHeight / 2);
+        
+        // Add a transition for smooth zooming
+        if (previousZoomLevelRef.current) {
+          iframeDocument.body.style.transition = 'transform 0.2s ease';
+          
+          // Immediately scroll to new position to prevent jarring shift
+          if (iframeWindow) {
+            iframeWindow.scrollTo({
+              left: newScrollX,
+              top: newScrollY,
+              behavior: 'auto' // Use instant scroll to prevent double animation
+            });
+          }
+          
+          // Remove the transition after it completes
+          setTimeout(() => {
+            if (iframeDocument.body) {
+              iframeDocument.body.style.transition = '';
+            }
+          }, 210);
+        } else {
+          // If it's the first time applying zoom, just scroll without transition
+          if (iframeWindow) {
+            iframeWindow.scrollTo({
+              left: newScrollX,
+              top: newScrollY,
+              behavior: 'auto'
+            });
+          }
+        }
+      }
+      
+      previousZoomLevelRef.current = zoomLevel;
+    }
+  }, [zoomLevel]); // Only depend on zoomLevel, not document or highlightedElementId
+
+  // Handle document loading and highlighting
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe || !document) return;
@@ -439,7 +532,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       const iframeDocument = iframe.contentDocument;
       if (!iframeDocument) return;
 
-      // Add styles specifically for 8-K and DEF 14A documents
+      // Add styles for document types
       if (document.sourceType === '8-K' || document.sourceType === 'DEF 14A') {
         const style = iframeDocument.createElement('style');
         style.textContent = `
@@ -464,6 +557,20 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             padding: 10px;
             background-color: white;
             position: relative;
+          }
+          
+          /* Responsive layout styles */
+          body {
+            transform-origin: top left;
+            transform: scale(${zoomLevel});
+            width: ${100 / zoomLevel}%;
+            overflow-x: auto;
+          }
+          
+          /* Improve table rendering */
+          table {
+            max-width: 100%;
+            table-layout: auto;
           }
         `;
         iframeDocument.head.appendChild(style);
@@ -594,6 +701,24 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           }
         }, delay);
       }
+
+      // Add general styles for all document types
+      const generalStyle = iframeDocument.createElement('style');
+      generalStyle.textContent = `
+        body {
+          transform-origin: top left;
+          transform: scale(${zoomLevel});
+          width: ${100 / zoomLevel}%;
+          overflow-x: auto;
+        }
+        
+        /* Improve table rendering */
+        table {
+          max-width: 100%;
+          table-layout: auto;
+        }
+      `;
+      iframeDocument.head.appendChild(generalStyle);
     };
 
     // Get HTML content based on document type
@@ -613,7 +738,11 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       <html>
         <head>
           <style>
-            body { margin: 0; padding: 16px; }
+            body { 
+              margin: 0; 
+              padding: 16px; 
+              overflow-x: auto;
+            }
             .highlighted {
               background-color: yellow !important;
             }
@@ -627,18 +756,23 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       </html>
     `;
 
-    if (previousDocumentRef.current !== documentIdentifier || 
-        previousSourceTypeRef.current !== document.sourceType) {
+    // Check if we're loading a new document or just updating the highlight in the same document
+    const isDocumentChange = previousDocumentRef.current !== documentIdentifier || 
+                           previousSourceTypeRef.current !== document.sourceType;
+
+    if (isDocumentChange) {
+      // Only reset the iframe content if we're loading a new document
       iframe.srcdoc = formattedHtmlContent;
       previousDocumentRef.current = documentIdentifier;
       previousSourceTypeRef.current = document.sourceType;
     } else {
+      // For the same document with a new highlight, just handle the highlighting
       handleLoad();
     }
 
     iframe.addEventListener('load', handleLoad);
     return () => iframe.removeEventListener('load', handleLoad);
-  }, [document, highlightedElementId]);
+  }, [document, highlightedElementId]); // Remove zoomLevel from dependencies
 
   if (isLoading) {
     return <div className={className} style={style}>Loading document...</div>;
@@ -649,12 +783,50 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   }
 
   return (
-    <iframe
-      ref={iframeRef}
-      className={className}
-      style={style}
-      sandbox="allow-same-origin allow-popups"
-    />
+    <div className="relative flex flex-col h-full group">
+      {showZoomControls && (
+        <div className="absolute mt-2 top-12 right-2 z-10 flex items-center space-x-1 bg-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 border border-gray-300">
+          <button 
+            onClick={zoomOut}
+            className="p-1 hover:bg-gray-100 rounded"
+            title="Zoom out"
+            aria-label="Zoom out"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              <line x1="8" y1="11" x2="14" y2="11"></line>
+            </svg>
+          </button>
+          
+          <button 
+            onClick={zoomIn}
+            className="p-1 hover:bg-gray-100 rounded"
+            title="Zoom in"
+            aria-label="Zoom in"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              <line x1="11" y1="8" x2="11" y2="14"></line>
+              <line x1="8" y1="11" x2="14" y2="11"></line>
+            </svg>
+          </button>
+        </div>
+      )}
+      
+      <iframe
+        ref={iframeRef}
+        className={className}
+        style={{
+          ...style,
+          width: '100%',
+          height: '100%',
+          overflow: 'auto',
+        }}
+        sandbox="allow-same-origin allow-popups"
+      />
+    </div>
   );
 };
 
