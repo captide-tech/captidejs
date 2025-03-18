@@ -507,12 +507,8 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
     
     if (isCurrentDocument) {
       if (newTabs.length === 0) {
-        // If there are no tabs left, clear the document
-        updateDocumentViewer({
-          tabs: newTabs,
-          document: null,
-          highlightedElementId: null
-        });
+        // If there are no tabs left, close the viewer entirely
+        closeViewer();
       } else {
         // Otherwise, load the first tab
         updateDocumentViewer({
@@ -527,7 +523,7 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
       // Just update the tabs
       updateDocumentViewer({ tabs: newTabs });
     }
-  }, [state.tabs, state.document, updateDocumentViewer]);
+  }, [state.tabs, state.document, updateDocumentViewer, closeViewer, loadDocument]);
 
   /**
    * Sets the zoom level
