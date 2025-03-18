@@ -686,8 +686,68 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                     });
                   }
                 }
+              } else if (document.sourceType === '10-K' || document.sourceType === '10-Q') {
+                // Enhanced handling for 10-K and 10-Q documents with reliable scrolling
+                // Get the iframe's content window for scrolling operations
+                const contentWindow = iframe.contentWindow;
+                const contentDocument = iframe.contentDocument;
+                
+                if (!contentWindow || !contentDocument) {
+                  console.error('Cannot access iframe content window or document');
+                  return;
+                }
+                
+                // Define a function to scroll to the element with retry capability
+                const scrollToHighlightedElement = (attempt = 1, maxAttempts = 3) => {
+                  // Get fresh positions as they might have changed
+                  const freshRect = scrollTarget.getBoundingClientRect();
+                  
+                  // Check if element is properly positioned (has height/width)
+                  const hasValidDimensions = freshRect.height > 0 && freshRect.width > 0;
+                  
+                  if (hasValidDimensions) {
+                    // Calculate the absolute position of the element relative to the document
+                    // Add a margin at top for better visibility
+                    const absoluteTop = freshRect.top + contentWindow.scrollY - 100;
+                    
+                    // Use direct window scrolling (most reliable in iframes)
+                    contentWindow.scrollTo({
+                      top: absoluteTop,
+                      behavior: isNewDocument ? 'auto' : 'smooth'
+                    });
+                    
+                    return true;
+                  } else if (attempt < maxAttempts) {
+                    // Element not properly rendered yet, retry with exponential backoff
+                    const nextDelay = attempt * 300; // 300ms, 600ms, 900ms
+                    
+                    setTimeout(() => {
+                      scrollToHighlightedElement(attempt + 1, maxAttempts);
+                    }, nextDelay);
+                    
+                    return false;
+                  } else {
+                    // If all attempts fail, try the fallback approach with scrollIntoView
+                    const finalScrollTarget = scrollTarget.closest('div') || 
+                                          scrollTarget.parentElement || 
+                                          scrollTarget;
+                    
+                    finalScrollTarget.scrollIntoView({ 
+                      behavior: 'auto',
+                      block: 'center'
+                    });
+                    
+                    return false;
+                  }
+                };
+                
+                // Start the first attempt with appropriate initial delay
+                const initialDelay = isNewDocument ? 800 : 200;
+                setTimeout(() => {
+                  scrollToHighlightedElement();
+                }, initialDelay);
               } else {
-                // For filings, use the original approach with improvements
+                // For other filings, use the original approach with improvements
                 const finalScrollTarget = scrollTarget.closest('div') || 
                                       scrollTarget.parentElement || 
                                       scrollTarget;
