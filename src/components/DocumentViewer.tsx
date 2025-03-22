@@ -559,90 +559,56 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             if (document.sourceType === '10-K' || document.sourceType === '10-Q') {
               const elementsArray = Array.from(elementsToHighlight);
               
-              // Group highlighted elements by their common parent
-              const parentMap = new Map();
-              
-              elementsArray.forEach(element => {
-                // Get the closest paragraph or div as the container
-                const container = element.closest('p') || element.closest('div');
-                if (container) {
-                  if (!parentMap.has(container)) {
-                    parentMap.set(container, []);
-                  }
-                  parentMap.get(container).push(element);
-                }
-              });
-              
-              // Process each container with highlighted elements
-              parentMap.forEach((highlightedElements, container) => {
-                if (highlightedElements.length > 1) {
-                  // Sort elements by their position in the DOM
-                  highlightedElements.sort((a: Element, b: Element) => {
-                    const position = a.compareDocumentPosition(b);
-                    return position & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
-                  });
+              if (elementsArray.length > 0) {
+                // 1. First, directly highlight all the matching elements
+                elementsArray.forEach(element => {
+                  element.classList.add('highlighted');
+                });
+                
+                // 2. Sort all highlighted elements by their document position
+                elementsArray.sort((a, b) => {
+                  const position = a.compareDocumentPosition(b);
+                  return position & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+                });
+                
+                // 3. For each consecutive pair of highlighted elements, highlight content in between
+                for (let i = 0; i < elementsArray.length - 1; i++) {
+                  const currentElement = elementsArray[i];
+                  const nextElement = elementsArray[i + 1];
                   
-                  // Find the first and last highlighted elements
-                  const firstElement = highlightedElements[0];
-                  const lastElement = highlightedElements[highlightedElements.length - 1];
+                  // Skip if elements are in completely different parts of the document
+                  // Only highlight between elements that are relatively close to each other
+                  const currentRect = currentElement.getBoundingClientRect();
+                  const nextRect = nextElement.getBoundingClientRect();
+                  const verticalDistance = Math.abs(nextRect.top - currentRect.bottom);
                   
-                  // Get all text nodes and elements within the container
-                  const walker = iframeDocument.createTreeWalker(
-                    container,
-                    NodeFilter.SHOW_ELEMENT,
-                    null
-                  );
+                  // Skip if the vertical distance is too large (likely different sections)
+                  if (verticalDistance > 1000) continue;
                   
-                  // Variables to track when we're in the "between highlighted elements" range
-                  let foundFirstElement = false;
-                  let foundLastElement = false;
-                  let currentNode = walker.nextNode();
+                  // Find a common ancestor for both elements
+                  let commonAncestor = null;
+                  let currentParent = currentElement.parentElement;
                   
-                  // Walk through all elements in the container
-                  while (currentNode) {
-                    // If we found the first highlighted element, start highlighting
-                    if (currentNode === firstElement || currentNode.contains(firstElement)) {
-                      foundFirstElement = true;
+                  // Go up the DOM tree until we find a common ancestor
+                  while (currentParent && !commonAncestor) {
+                    if (currentParent.contains(nextElement)) {
+                      commonAncestor = currentParent;
+                    } else {
+                      currentParent = currentParent.parentElement;
                     }
-                    
-                    // If we're between first and last elements, highlight this node
-                    if (foundFirstElement && !foundLastElement) {
-                      if (currentNode.nodeType === Node.ELEMENT_NODE) {
-                        (currentNode as Element).classList.add('highlighted');
-                      }
-                    }
-                    
-                    // If we found the last highlighted element, stop highlighting
-                    if (currentNode === lastElement || currentNode.contains(lastElement)) {
-                      foundLastElement = true;
-                    }
-                    
-                    currentNode = walker.nextNode();
                   }
                   
-                  // Special handling for nested elements with ix:nonfraction tags
-                  // This ensures that numeric values inside ix:nonfraction are also highlighted
-                  const allNestedElements = container.querySelectorAll('*');
-                  allNestedElements.forEach((nestedElement: Element) => {
-                    // Check if this element is between the first and last highlighted elements in DOM order
-                    const isAfterFirst = 
-                      firstElement.compareDocumentPosition(nestedElement) & 
-                      Node.DOCUMENT_POSITION_FOLLOWING;
-                    const isBeforeLast = 
-                      lastElement.compareDocumentPosition(nestedElement) & 
-                      Node.DOCUMENT_POSITION_PRECEDING;
-                      
-                    // Also highlight elements that are inside one of our highlighted elements
-                    const isInsideHighlighted = Array.from(highlightedElements as Element[]).some(el => 
-                      el.contains(nestedElement)
-                    );
-                    
-                    if ((isAfterFirst && isBeforeLast) || isInsideHighlighted) {
-                      nestedElement.classList.add('highlighted');
-                    }
-                  });
+                  if (!commonAncestor) continue;
+                  
+                  // Create a document range between the two elements
+                  const range = iframeDocument.createRange();
+                  range.setStartAfter(currentElement);
+                  range.setEndBefore(nextElement);
+                  
+                  // Highlight all elements within the range
+                  highlightElementsInRange(range, commonAncestor, iframeDocument);
                 }
-              });
+              }
             }
             
             // Find the best element to scroll to
@@ -1048,6 +1014,77 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       }, 200);
     });
   }, [document]);
+
+  // Helper function to highlight elements in a range between two highlighted elements
+  function highlightElementsInRange(range: Range, commonAncestor: Element, iframeDocument: Document): void {
+    // Create a tree walker to iterate through all elements in the common ancestor
+    const walker = iframeDocument.createTreeWalker(
+      commonAncestor,
+      NodeFilter.SHOW_ELEMENT,
+      {
+        acceptNode: function(node: Node): number {
+          // Skip elements that are already highlighted
+          if ((node as Element).classList && (node as Element).classList.contains('highlighted')) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          
+          // Accept nodes that are fully contained within the range
+          if (range.intersectsNode(node)) {
+            return NodeFilter.FILTER_ACCEPT;
+          }
+          
+          return NodeFilter.FILTER_SKIP;
+        }
+      } as NodeFilter
+    );
+    
+    // Walk through all elements in the range and highlight them
+    let currentNode = walker.nextNode() as Element | null;
+    while (currentNode) {
+      // Only highlight elements that contain direct text content or are tables
+      const shouldHighlight = (
+        // Table elements
+        currentNode.tagName === 'TABLE' || 
+        currentNode.tagName === 'TR' || 
+        currentNode.tagName === 'TD' || 
+        currentNode.tagName === 'TH' ||
+        // Elements with direct text content
+        (currentNode.childNodes && Array.from(currentNode.childNodes).some((child: ChildNode) => 
+          child.nodeType === Node.TEXT_NODE && 
+          child.textContent && 
+          child.textContent.trim().length > 0
+        )) ||
+        // Special elements that should always be highlighted
+        currentNode.tagName === 'IX:NONFRACTION' ||
+        currentNode.tagName === 'SPAN' ||
+        // For tables, highlight the table container too
+        currentNode.classList && (
+          currentNode.classList.contains('table') || 
+          currentNode.classList.contains('financial-table')
+        )
+      );
+      
+      if (shouldHighlight) {
+        currentNode.classList.add('highlighted');
+      }
+      
+      currentNode = walker.nextNode() as Element | null;
+    }
+    
+    // Special handling for tables - make sure we catch the entire table
+    const tables = commonAncestor.querySelectorAll('table');
+    tables.forEach((table: Element) => {
+      // Check if any part of the table is within the range
+      if (range.intersectsNode(table)) {
+        // Highlight the table and all its child elements
+        table.classList.add('highlighted');
+        const tableElements = table.querySelectorAll('*');
+        tableElements.forEach((el: Element) => {
+          el.classList.add('highlighted');
+        });
+      }
+    });
+  }
 
   if (isLoading) {
     return <div className={className} style={style}>Loading document...</div>;
