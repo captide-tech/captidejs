@@ -50,6 +50,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const previousDocumentRef = useRef<string | null>(null);
   const previousSourceTypeRef = useRef<string | null>(null);
   const previousZoomLevelRef = useRef<number>(1.0);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   /**
    * Process HTML content for 8-K documents to identify page breaks and create page containers
@@ -997,6 +998,57 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     };
   }, []);
 
+  // Ensure scrolling works regardless of focus
+  useEffect(() => {
+    const containerElement = containerRef.current;
+    const iframeElement = iframeRef.current;
+    
+    if (!containerElement || !iframeElement) return;
+    
+    // Function to handle scroll events from the container
+    const handleContainerScroll = (event: WheelEvent) => {
+      // If the iframe content document isn't loaded yet, don't do anything
+      if (!iframeElement.contentWindow || !iframeElement.contentDocument) return;
+      
+      // Prevent default to avoid parent scrolling
+      event.preventDefault();
+      
+      // Calculate the scroll amount
+      const scrollAmount = event.deltaY;
+      
+      // Scroll the iframe content
+      iframeElement.contentWindow.scrollBy({
+        top: scrollAmount,
+        behavior: 'auto'
+      });
+    };
+    
+    // Add scroll event listener to the container
+    containerElement.addEventListener('wheel', handleContainerScroll, { passive: false });
+    
+    // Clean up event listener on unmount
+    return () => {
+      containerElement.removeEventListener('wheel', handleContainerScroll);
+    };
+  }, []);
+  
+  // Auto-focus the iframe when content changes
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe || !document) return;
+    
+    // Give focus to the iframe for better scroll behavior
+    iframe.addEventListener('load', () => {
+      // Focus after a short delay to ensure content is ready
+      setTimeout(() => {
+        if (iframe.contentWindow) {
+          // Try to focus the iframe window
+          iframe.contentWindow.focus();
+        }
+      }, 200);
+    });
+  }, [document]);
+
   if (isLoading) {
     return <div className={className} style={style}>Loading document...</div>;
   }
@@ -1006,7 +1058,17 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   }
 
   return (
-    <div className="relative flex flex-col h-full group">
+    <div 
+      ref={containerRef}
+      className="relative flex flex-col h-full group"
+      // Add touch events handler for mobile devices
+      onTouchStart={() => {
+        // Focus the iframe when user touches the container
+        if (iframeRef.current?.contentWindow) {
+          iframeRef.current.contentWindow.focus();
+        }
+      }}
+    >
       {showZoomControls && (
         <div className="absolute mt-2 top-12 right-2 z-10 flex items-center space-x-1 bg-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 border border-gray-300">
           <button 
@@ -1048,6 +1110,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           overflow: 'auto',
         }}
         sandbox="allow-same-origin allow-popups"
+        // Add a tabIndex to make the iframe focusable by keyboard
+        tabIndex={0}
       />
     </div>
   );
