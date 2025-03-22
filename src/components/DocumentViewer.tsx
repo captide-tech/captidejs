@@ -873,17 +873,72 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       // Add general styles for all document types
       const generalStyle = iframeDocument.createElement('style');
       generalStyle.textContent = `
-        body {
+        /* Base container styles */
+        html, body {
           transform-origin: top left;
           transform: scale(${zoomLevel});
-          width: ${100 / zoomLevel}%;
-          overflow-x: auto;
+          width: 100%;
+          max-width: 100%;
+          overflow-x: hidden;
+          margin: 0;
+          padding: 0;
         }
         
-        /* Improve table rendering */
+        /* Allow natural wrapping while preventing horizontal overflow */
+        body * {
+          max-width: 100%;
+          box-sizing: border-box;
+        }
+        
+        /* Handle tables more naturally */
         table {
           max-width: 100%;
           table-layout: auto;
+          width: auto;
+        }
+        
+        /* Allow tables to wrap - less aggressive approach */
+        table, thead, tbody, th, td {
+          max-width: 100%;
+          overflow-wrap: break-word;
+        }
+        
+        /* Financial document tables often need special handling */
+        .ix_hidden, .previewer-table, .financial-table {
+          max-width: 100%;
+          width: auto !important;
+        }
+        
+        /* For numeric data columns, preserve as much as possible */
+        td[align="right"], th[align="right"] {
+          white-space: nowrap;
+          text-align: right;
+        }
+        
+        /* Make images responsive */
+        img {
+          max-width: 100%;
+          height: auto;
+        }
+        
+        /* Special handling for pages in DEF 14A documents */
+        .captide-page {
+          width: 100%;
+          max-width: 100%;
+          overflow-x: hidden;
+        }
+        
+        /* Only override inline widths that are too large */
+        [style*="width:"] {
+          max-width: 100%;
+        }
+        
+        /* Highlighted elements */
+        .highlighted {
+          background-color: yellow !important;
+        }
+        .highlighted * {
+          background-color: transparent !important;
         }
       `;
       iframeDocument.head.appendChild(generalStyle);
@@ -905,12 +960,28 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     const formattedHtmlContent = `
       <html>
         <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <style>
-            body { 
+            html, body { 
               margin: 0; 
-              padding: 16px; 
-              overflow-x: auto;
+              padding: 0;
+              overflow-x: hidden;
+              width: 100%;
             }
+            
+            /* Natural wrapping of content */
+            * {
+              max-width: 100%;
+              box-sizing: border-box;
+            }
+            
+            /* Handle tables naturally */
+            table {
+              max-width: 100%;
+              width: auto;
+            }
+            
+            /* Highlighted elements */
             .highlighted {
               background-color: yellow !important;
             }
@@ -990,7 +1061,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           ...style,
           width: '100%',
           height: '100%',
-          overflow: 'auto',
+          overflow: 'hidden',
         }}
         sandbox="allow-same-origin allow-popups"
       />
