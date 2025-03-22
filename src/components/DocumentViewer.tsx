@@ -57,8 +57,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
    * @returns Processed HTML with page containers
    */
   const processHtmlForPageBreaks = (html: string): string => {
-    console.log('Processing HTML for page breaks');
-    
     // Improved slide deck detection with more robust checks
     const isSlideDeck = (
       // Check for any exhibit99 pattern (case insensitive)
@@ -69,10 +67,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       html.includes('padding-top:2em;')
     );
     
-    console.log('❣️isSlideDeck', isSlideDeck);
-    
     if (isSlideDeck) {
-      console.log('Detected slide deck format - using specialized processing');
       return processSlideDeckFormat(html);
     }
     
@@ -96,12 +91,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     
     // Count primary pattern matches
     let primaryMatches = 0;
-    primaryPatterns.forEach((pattern, index) => {
+    primaryPatterns.forEach((pattern) => {
       const matches = html.match(pattern) || [];
       primaryMatches += matches.length;
-      if (matches.length > 0) {
-        console.log(`Found ${matches.length} matches for primary pattern ${index + 1}`);
-      }
     });
     
     // Replace all primary pattern matches with a standardized marker
@@ -112,12 +104,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     
     // If we don't have enough primary matches, try fallback patterns
     if (primaryMatches < 2) {
-      console.log("Not enough primary page breaks found, trying fallback patterns");
-      
-      fallbackPatterns.forEach((pattern, index) => {
+      fallbackPatterns.forEach((pattern) => {
         const matches = processedHtml.match(pattern) || [];
         if (matches.length > 0) {
-          console.log(`Found ${matches.length} matches for fallback pattern ${index + 1}`);
           processedHtml = processedHtml.replace(pattern, '<!-- PAGE_BREAK -->');
         }
       });
@@ -126,17 +115,14 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     // If we still don't have enough page breaks, use generic HR as the final fallback
     if (!processedHtml.includes('<!-- PAGE_BREAK -->')) {
       const genericHrMatches = html.match(genericHrPattern) || [];
-      console.log(`Using ${genericHrMatches.length} generic HR elements as page breaks`);
       processedHtml = processedHtml.replace(genericHrPattern, '<!-- PAGE_BREAK -->');
     }
     
     // Split the HTML by our markers
     const pageContentArray = processedHtml.split('<!-- PAGE_BREAK -->');
-    console.log(`HTML split into ${pageContentArray.length} segments`);
     
     // Filter out empty segments to avoid blank pages
     const nonEmptyPages = pageContentArray.filter(content => content.trim().length > 0);
-    console.log(`After filtering empty segments: ${nonEmptyPages.length} pages`);
     
     // Prepare the final HTML with page containers
     let finalHtml = '<html><head><style>';
@@ -174,7 +160,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     });
     
     finalHtml += '</div></body></html>';
-    console.log(`Created ${nonEmptyPages.length} pages using split approach`);
     
     return finalHtml;
   };
@@ -184,8 +169,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
    * These have a specific structure with image slides followed by page breaks
    */
   const processSlideDeckFormat = (html: string): string => {
-    console.log('Processing slide deck format');
-    
     // Create a temporary DOM element to parse the HTML
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
@@ -193,10 +176,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     // Find all slide elements containing images (the actual slides, not page breaks)
     // Focus on the div with padding-top that typically contains the slide image
     const slideElements = Array.from(doc.querySelectorAll('div[style*="padding-top:2em"]'));
-    console.log(`Found ${slideElements.length} potential slide elements`);
     
     if (slideElements.length === 0) {
-      console.log('No slide elements found, falling back to standard processing');
       return html;
     }
     
@@ -241,7 +222,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     });
     
     finalHtml += '</div></body></html>';
-    console.log(`Created ${slideElements.length} separate slide pages`);
     
     return finalHtml;
   };
@@ -277,6 +257,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         iframeDocument.body.style.transformOrigin = 'top left';
         iframeDocument.body.style.transform = `scale(${zoomLevel})`;
         iframeDocument.body.style.width = `${100 / zoomLevel}%`;
+        iframeDocument.body.style.height = 'auto'; // Allow height to adjust naturally
+        iframeDocument.body.style.minHeight = '100%';
         
         // Calculate new scroll position to keep the same point centered
         const newCenterX = centerX * scaleFactor;
@@ -286,35 +268,19 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         const newScrollX = newCenterX - (viewportWidth / 2);
         const newScrollY = newCenterY - (viewportHeight / 2);
         
-        // Add a transition for smooth zooming
-        if (previousZoomLevelRef.current) {
-          iframeDocument.body.style.transition = 'transform 0.2s ease';
+        // Add a slight delay to ensure the transform has been applied
+        setTimeout(() => {
+          // Scroll to the new position to maintain the same content in view
+          iframeWindow.scrollTo({
+            left: newScrollX,
+            top: newScrollY,
+            behavior: 'auto' // Use instant scroll to prevent jarring shift
+          });
           
-          // Immediately scroll to new position to prevent jarring shift
-          if (iframeWindow) {
-            iframeWindow.scrollTo({
-              left: newScrollX,
-              top: newScrollY,
-              behavior: 'auto' // Use instant scroll to prevent double animation
-            });
-          }
-          
-          // Remove the transition after it completes
-          setTimeout(() => {
-            if (iframeDocument.body) {
-              iframeDocument.body.style.transition = '';
-            }
-          }, 210);
-        } else {
-          // If it's the first time applying zoom, just scroll without transition
-          if (iframeWindow) {
-            iframeWindow.scrollTo({
-              left: newScrollX,
-              top: newScrollY,
-              behavior: 'auto'
-            });
-          }
-        }
+          // Trigger a resize event to recalculate content layout
+          const resizeEvent = new Event('resize');
+          iframeWindow.dispatchEvent(resizeEvent);
+        }, 10);
       }
       
       previousZoomLevelRef.current = zoomLevel;
@@ -441,23 +407,17 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         // Convert the string to a number and make it zero-based (0000 -> page 0)
         const pageNumber = parseInt(pageNumberStr, 10);
         
-        console.log(`Highlighting page ${pageNumber} for ${document.sourceType} document (extracted from ID ${highlightedElementId})`);
-
         // For DEF 14A documents, use the injected highlightCaptidePage function
         if (document.sourceType === 'DEF 14A') {
           // The page numbers in captide-page are 1-based, while our internal pageNumber is 0-based
           const oneBasedPageNumber = pageNumber + 1;
-          console.log(`Using highlightCaptidePage function for DEF 14A document with page ${oneBasedPageNumber}`);
           
           // Use a small timeout to ensure DOM is fully loaded
           setTimeout(() => {
             // Check if the highlightCaptidePage function exists
             if (typeof iframeWindow.highlightCaptidePage === 'function') {
-              const success = iframeWindow.highlightCaptidePage(oneBasedPageNumber);
-              console.log(`Highlighted DEF 14A page ${oneBasedPageNumber} with result: ${success}`);
+              iframeWindow.highlightCaptidePage(oneBasedPageNumber);
             } else {
-              console.error('highlightCaptidePage function not found in iframe window');
-              
               // Fallback: try to find elements with data-page-number attribute
               const pageElements = iframeDocument.querySelectorAll(`.captide-page[data-page-number="${oneBasedPageNumber}"]`);
               if (pageElements.length > 0) {
@@ -470,9 +430,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 // Highlight the first page element and scroll to it
                 pageElements[0].classList.add('captide-page-highlighted');
                 pageElements[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
-                console.log(`Fallback: highlighted DEF 14A page ${oneBasedPageNumber} manually`);
-              } else {
-                console.error(`No page elements found for DEF 14A page ${oneBasedPageNumber}`);
               }
             }
           }, 200);
@@ -483,14 +440,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         // For 8-K documents, continue with existing page container approach
         // Find all page containers
         const pageContainers = iframeDocument.querySelectorAll('.page-container');
-        console.log(`Found ${pageContainers.length} page containers in the document`);
         
         if (pageContainers && pageContainers.length > 0) {
-          // Log all page numbers to help with debugging
-          Array.from(pageContainers).forEach((container, idx) => {
-            console.log(`Page ${idx} data-page attribute: ${container.getAttribute('data-page')}`);
-          });
-          
           // Remove existing highlights
           const existingHighlights = iframeDocument.querySelectorAll('.page-highlighted');
           existingHighlights.forEach(el => {
@@ -504,12 +455,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           const targetPageIndex = Math.min(pageNumber, pageContainers.length - 1);
           targetPage = pageContainers[targetPageIndex];
           
-          console.log(`Target page index: ${targetPageIndex}`);
-          
           if (targetPage) {
             // Highlight the page
             targetPage.classList.add('page-highlighted');
-            console.log(`Highlighted page ${targetPageIndex}`);
             
             // Scroll to the target page
             setTimeout(() => {
@@ -518,11 +466,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                   behavior: 'smooth',
                   block: 'start'
                 });
-                console.log(`Scrolled to page ${targetPageIndex}`);
               }
             }, 100);
-          } else {
-            console.error(`Target page at index ${targetPageIndex} not found`);
           }
         }
       }
@@ -965,7 +910,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             html, body { 
               margin: 0; 
               padding: 0;
-              overflow-x: hidden;
+              overflow-x: hidden; /* Prevent horizontal scrolling */
+              overflow-y: auto;   /* Allow vertical scrolling */
               width: 100%;
             }
             
@@ -974,6 +920,14 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
               max-width: 100%;
               box-sizing: border-box;
             }
+            
+            /* Add resize event listener to handle content reflow */
+            ${document?.sourceType === '10-K' || document?.sourceType === '10-Q' || document?.sourceType === 'DEF 14A' ? `
+              body {
+                height: auto !important;
+                min-height: 100%;
+              }
+            ` : ''}
             
             /* Handle tables naturally */
             table {
@@ -989,6 +943,21 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
               background-color: transparent !important;
             }
           </style>
+          <script>
+            // Add resize handler to recalculate document height
+            window.addEventListener('resize', function() {
+              // Force reflow calculation
+              document.body.style.height = 'auto';
+              // Small delay to ensure content has reflowed
+              setTimeout(function() {
+                // Inform parent of new height if needed
+                if (window.parent && window.parent !== window) {
+                  const height = document.body.scrollHeight;
+                  window.parent.postMessage({ type: 'resize', height: height }, '*');
+                }
+              }, 100);
+            });
+          </script>
           <base target="_blank">
         </head>
         <body>${htmlContent}</body>
@@ -1012,6 +981,21 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     iframe.addEventListener('load', handleLoad);
     return () => iframe.removeEventListener('load', handleLoad);
   }, [document, highlightedElementId]); // Remove zoomLevel from dependencies
+
+  // Add a resize listener in the parent component
+  useEffect(() => {
+    const handleIframeResize = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'resize') {
+        // You could adjust the container or iframe height here if needed
+        console.log('Content height changed:', event.data.height);
+      }
+    };
+    
+    window.addEventListener('message', handleIframeResize);
+    return () => {
+      window.removeEventListener('message', handleIframeResize);
+    };
+  }, []);
 
   if (isLoading) {
     return <div className={className} style={style}>Loading document...</div>;
@@ -1061,7 +1045,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           ...style,
           width: '100%',
           height: '100%',
-          overflow: 'hidden',
+          overflow: 'auto',
         }}
         sandbox="allow-same-origin allow-popups"
       />
