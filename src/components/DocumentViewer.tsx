@@ -603,11 +603,102 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           );
 
           if (elementsToHighlight.length > 0) {
-            // Highlight all matching elements
+            // First highlight all directly matching elements
             elementsToHighlight.forEach(element => {
               element.classList.add('highlighted');
             });
-
+            
+            // Enhanced highlighting: find elements between matching unique-id spans
+            // This ensures continuity in highlighting for 10-K and 10-Q documents
+            if (document.sourceType === '10-K' || document.sourceType === '10-Q') {
+              const elementsArray = Array.from(elementsToHighlight);
+              
+              // Group highlighted elements by their common parent
+              const parentMap = new Map();
+              
+              elementsArray.forEach(element => {
+                // Get the closest paragraph or div as the container
+                const container = element.closest('p') || element.closest('div');
+                if (container) {
+                  if (!parentMap.has(container)) {
+                    parentMap.set(container, []);
+                  }
+                  parentMap.get(container).push(element);
+                }
+              });
+              
+              // Process each container with highlighted elements
+              parentMap.forEach((highlightedElements, container) => {
+                if (highlightedElements.length > 1) {
+                  // Sort elements by their position in the DOM
+                  highlightedElements.sort((a: Element, b: Element) => {
+                    const position = a.compareDocumentPosition(b);
+                    return position & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+                  });
+                  
+                  // Find the first and last highlighted elements
+                  const firstElement = highlightedElements[0];
+                  const lastElement = highlightedElements[highlightedElements.length - 1];
+                  
+                  // Get all text nodes and elements within the container
+                  const walker = iframeDocument.createTreeWalker(
+                    container,
+                    NodeFilter.SHOW_ELEMENT,
+                    null
+                  );
+                  
+                  // Variables to track when we're in the "between highlighted elements" range
+                  let foundFirstElement = false;
+                  let foundLastElement = false;
+                  let currentNode = walker.nextNode();
+                  
+                  // Walk through all elements in the container
+                  while (currentNode) {
+                    // If we found the first highlighted element, start highlighting
+                    if (currentNode === firstElement || currentNode.contains(firstElement)) {
+                      foundFirstElement = true;
+                    }
+                    
+                    // If we're between first and last elements, highlight this node
+                    if (foundFirstElement && !foundLastElement) {
+                      if (currentNode.nodeType === Node.ELEMENT_NODE) {
+                        (currentNode as Element).classList.add('highlighted');
+                      }
+                    }
+                    
+                    // If we found the last highlighted element, stop highlighting
+                    if (currentNode === lastElement || currentNode.contains(lastElement)) {
+                      foundLastElement = true;
+                    }
+                    
+                    currentNode = walker.nextNode();
+                  }
+                  
+                  // Special handling for nested elements with ix:nonfraction tags
+                  // This ensures that numeric values inside ix:nonfraction are also highlighted
+                  const allNestedElements = container.querySelectorAll('*');
+                  allNestedElements.forEach((nestedElement: Element) => {
+                    // Check if this element is between the first and last highlighted elements in DOM order
+                    const isAfterFirst = 
+                      firstElement.compareDocumentPosition(nestedElement) & 
+                      Node.DOCUMENT_POSITION_FOLLOWING;
+                    const isBeforeLast = 
+                      lastElement.compareDocumentPosition(nestedElement) & 
+                      Node.DOCUMENT_POSITION_PRECEDING;
+                      
+                    // Also highlight elements that are inside one of our highlighted elements
+                    const isInsideHighlighted = Array.from(highlightedElements as Element[]).some(el => 
+                      el.contains(nestedElement)
+                    );
+                    
+                    if ((isAfterFirst && isBeforeLast) || isInsideHighlighted) {
+                      nestedElement.classList.add('highlighted');
+                    }
+                  });
+                }
+              });
+            }
+            
             // Find the best element to scroll to
             const scrollTarget = findBestScrollTarget(elementsToHighlight);
             
