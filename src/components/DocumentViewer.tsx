@@ -705,7 +705,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             if (scrollTarget) {
               if (document.sourceType === 'transcript') {
                 // For transcripts, we need to be more precise about scrolling
-                
                 // Get the exact position of the highlighted element
                 const targetRect = scrollTarget.getBoundingClientRect();
                 const iframeRect = iframe.getBoundingClientRect();
@@ -715,8 +714,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 const contentDocument = iframe.contentDocument;
                 
                 if (contentWindow && contentDocument) {
-                  // Calculate desired position - we want the element about 100px from the top
-                  // This gives context above the highlighted element
+                  // Calculate desired position - we want the element at the top
+                  // with just a small margin (20px) for context
                   
                   // Get current scroll position and viewport height
                   const currentScrollY = contentWindow.scrollY;
@@ -726,8 +725,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                   const docElement = contentDocument.documentElement;
                   const targetOffsetTop = targetRect.top + currentScrollY;
                   
-                  // Calculate the ideal scroll position (element 100px from top)
-                  const idealScrollPosition = targetOffsetTop - 100;
+                  // Calculate the ideal scroll position (element at top with small margin)
+                  const idealScrollPosition = targetOffsetTop - 20;
                   
                   // Check if the highlight is inside a very long paragraph
                   const containingParagraph = scrollTarget.closest('p');
@@ -764,9 +763,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                     const containerRect = containerToScroll.getBoundingClientRect();
                     const containerTop = containerRect.top + currentScrollY;
                     
-                    // Scroll to position the container appropriately
+                    // Scroll to position the container at the top with small margin
                     contentWindow.scrollTo({
-                      top: containerTop - 80, // Position with some space above
+                      top: containerTop - 20, // Position with small space above
                       behavior: isNewDocument ? 'auto' : 'smooth'
                     });
                   } else {
@@ -779,7 +778,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 }
               } else if (document.sourceType === '10-K' || document.sourceType === '10-Q') {
                 // Enhanced handling for 10-K and 10-Q documents with reliable scrolling
-                // Get the iframe's content window for scrolling operations
                 const contentWindow = iframe.contentWindow;
                 const contentDocument = iframe.contentDocument;
                 
@@ -788,18 +786,37 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                   return;
                 }
                 
+                // Find the topmost highlighted element in document order
+                const findTopmostHighlightedElement = () => {
+                  // Get all highlighted elements
+                  const allHighlighted = contentDocument.querySelectorAll('.highlighted');
+                  if (allHighlighted.length === 0) return scrollTarget;
+                  
+                  // Convert to array and sort by document position
+                  return Array.from(allHighlighted).sort((a, b) => {
+                    const position = a.compareDocumentPosition(b);
+                    // DOCUMENT_POSITION_FOLLOWING means 'a' comes before 'b'
+                    if (position & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+                    if (position & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+                    return 0;
+                  })[0]; // Take the first element in document order
+                };
+                
                 // Define a function to scroll to the element with retry capability
                 const scrollToHighlightedElement = (attempt = 1, maxAttempts = 3) => {
+                  // Find the topmost highlighted element
+                  const topmostElement = findTopmostHighlightedElement();
+                  
                   // Get fresh positions as they might have changed
-                  const freshRect = scrollTarget.getBoundingClientRect();
+                  const freshRect = topmostElement.getBoundingClientRect();
                   
                   // Check if element is properly positioned (has height/width)
                   const hasValidDimensions = freshRect.height > 0 && freshRect.width > 0;
                   
                   if (hasValidDimensions) {
                     // Calculate the absolute position of the element relative to the document
-                    // Add a margin at top for better visibility
-                    const absoluteTop = freshRect.top + contentWindow.scrollY - 100;
+                    // Add a small margin at top for better visibility
+                    const absoluteTop = freshRect.top + contentWindow.scrollY - 20;
                     
                     // Use direct window scrolling (most reliable in iframes)
                     contentWindow.scrollTo({
@@ -819,13 +836,13 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                     return false;
                   } else {
                     // If all attempts fail, try the fallback approach with scrollIntoView
-                    const finalScrollTarget = scrollTarget.closest('div') || 
-                                          scrollTarget.parentElement || 
-                                          scrollTarget;
+                    const finalScrollTarget = topmostElement.closest('div') || 
+                                          topmostElement.parentElement || 
+                                          topmostElement;
                     
                     finalScrollTarget.scrollIntoView({ 
                       behavior: 'auto',
-                      block: 'center'
+                      block: 'start'
                     });
                     
                     return false;
@@ -845,7 +862,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                                       
                 finalScrollTarget.scrollIntoView({ 
                   behavior: isNewDocument ? 'auto' : 'smooth',
-                  block: 'center'
+                  block: 'start'
                 });
               }
             }
