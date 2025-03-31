@@ -34,26 +34,31 @@ interface DocumentViewerProviderProps {
 /**
  * Extract source type from a sourceLink URL
  * 
- * @param sourceLink - The source link containing the source_type parameter
+ * @param sourceLink - The source link containing the sourceType parameter
  * @returns The source type value
- * @throws Error if the sourceLink cannot be parsed or lacks a valid source_type
+ * @throws Error if the sourceLink cannot be parsed or lacks a valid sourceType
  */
 function extractSourceTypeFromUrl(sourceLink: string): SourceType {
   try {
+    console.log('🔍 Extracting sourceType from:', sourceLink);
     const url = new URL(sourceLink);
-    const sourceTypeParam = url.searchParams.get('source_type');
+    const sourceTypeParam = url.searchParams.get('sourceType');
     
     // Check if the sourceTypeParam is one of the valid SourceType values
     if (sourceTypeParam === '10-K' || 
         sourceTypeParam === '10-Q' || 
         sourceTypeParam === '8-K' || 
         sourceTypeParam === 'transcript' ||
-        sourceTypeParam === 'DEF 14A') {
+        sourceTypeParam === 'DEF 14A' ||
+        sourceTypeParam === 'DEFM14A' ||
+        sourceTypeParam === 'DEF 14C' ||
+        sourceTypeParam === 'DEFM14C') {
+      console.log('😜Extracted sourceType:', sourceTypeParam);
       return sourceTypeParam;
     }
     
-    // Throw an error if source_type is missing or invalid
-    throw new Error(`Invalid source_type parameter in sourceLink: ${sourceTypeParam || 'missing'}`);
+    // Throw an error if sourceType is missing or invalid
+    throw new Error(`Invalid sourceType parameter in sourceLink: ${sourceTypeParam || 'missing'}`);
   } catch (e) {
     // Add more context to the error
     const error = e instanceof Error ? e : new Error(String(e));

@@ -393,6 +393,14 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       }
     };
 
+    // Helper function to check if document is a proxy statement
+    const isProxyStatement = (sourceType: string): boolean => {
+      return sourceType === 'DEF 14A' || 
+             sourceType === 'DEFM14A' || 
+             sourceType === 'DEF 14C' || 
+             sourceType === 'DEFM14C';
+    };
+
     // Handle Load specifically for 8-K and DEF 14A documents
     const handlePageBasedDocumentLoad = () => {
       const iframeDocument = iframe.contentDocument;
@@ -400,7 +408,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       if (!iframeDocument || !iframeWindow) return;
 
       // For 8-K and DEF 14A documents, we need to highlight the correct page
-      if ((document.sourceType === '8-K' || document.sourceType === 'DEF 14A') && highlightedElementId) {
+      if ((document.sourceType === '8-K' || isProxyStatement(document.sourceType)) && highlightedElementId) {
         // Extract page number from the last four digits of the highlightedElementId
         // Format: #f2340000 where 0000 is page 1, 0001 is page 2, etc.
         const cleanId = highlightedElementId.replace('#', '');
@@ -408,8 +416,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         // Convert the string to a number and make it zero-based (0000 -> page 0)
         const pageNumber = parseInt(pageNumberStr, 10);
         
-        // For DEF 14A documents, use the injected highlightCaptidePage function
-        if (document.sourceType === 'DEF 14A') {
+        // For proxy statement documents, use the injected highlightCaptidePage function
+        if (isProxyStatement(document.sourceType)) {
           // The page numbers in captide-page are 1-based, while our internal pageNumber is 0-based
           const oneBasedPageNumber = pageNumber + 1;
           
@@ -435,7 +443,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             }
           }, 200);
           
-          return; // Exit early for DEF 14A documents
+          return; // Exit early for proxy statement documents
         }
         
         // For 8-K documents, continue with existing page container approach
@@ -479,7 +487,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       if (!iframeDocument) return;
 
       // Add styles for document types
-      if (document.sourceType === '8-K' || document.sourceType === 'DEF 14A') {
+      if (document.sourceType === '8-K' || isProxyStatement(document.sourceType)) {
         const style = iframeDocument.createElement('style');
         style.textContent = `
           .page-highlighted {
@@ -493,7 +501,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             background-color: white;
           }
           
-          /* Styles for DEF 14A documents with captide-page markers */
+          /* Styles for proxy statement documents with captide-page markers */
           .captide-page-highlighted {
             outline: 4px solid yellow;
             outline-offset: -4px;
@@ -833,7 +841,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           height: auto;
         }
         
-        /* Special handling for pages in DEF 14A documents */
+        /* Special handling for pages in proxy statement documents */
         .captide-page {
           width: 100%;
           max-width: 100%;
@@ -864,7 +872,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     documentIdentifier = document.sourceLink;
     
     // Special handling for 8-K documents to process page breaks
-    // For DEF 14A documents, keep the original HTML as it already has our custom page markers
+    // For proxy statement documents, keep the original HTML as it already has our custom page markers
     if (document.sourceType === '8-K') {
       htmlContent = processHtmlForPageBreaks(htmlContent);
     }
