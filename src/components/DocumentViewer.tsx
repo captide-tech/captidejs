@@ -28,6 +28,7 @@ interface DocumentViewerProps {
  * 
  * Features:
  * - Support for all document types (10-K/10-Q filings, 8-K documents, and earnings call transcripts)
+ * - Support for international filings (20-F, 40-F, and 6-K documents) with comment-based highlighting
  * - Smart element highlighting with clustering
  * - Efficient document reloading on content change
  * - Zoom controls for adjusting document scale
@@ -288,6 +289,11 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     }
   }, [zoomLevel]); // Only depend on zoomLevel, not document or highlightedElementId
 
+  // Helper function to check if document is an international filing type
+  const isInternationalFiling = (sourceType: string): boolean => {
+    return sourceType === '20-F' || sourceType === '40-F' || sourceType === '6-K';
+  };
+
   // Handle document loading and highlighting
   useEffect(() => {
     const iframe = iframeRef.current;
@@ -482,6 +488,176 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       }
     };
 
+    // Handle highlighting for international filings (20-F, 40-F, 6-K)
+    const handleInternationalFilingHighlight = () => {
+      const iframeDocument = iframe.contentDocument;
+      const iframeWindow = iframe.contentWindow;
+      if (!iframeDocument || !iframeWindow || !highlightedElementId) return;
+
+      // For international filings, highlightedElementId is 8 characters (e.g., #c892332c)
+      // We need to extract the start and end comment IDs (each 4 characters)
+      const cleanId = highlightedElementId.replace('#', '');
+      
+      // First 4 characters represent the start marker, last 4 characters represent the end marker
+      const startMarkerId = cleanId.substring(0, 4);
+      const endMarkerId = cleanId.substring(4, 8);
+      
+      console.log(`Highlighting international filing from marker #${startMarkerId} to #${endMarkerId}`);
+      
+      // Look for comments with these IDs in the format <!--[[#xxxx]]-->
+      const allComments = [];
+      const iterator = iframeDocument.createNodeIterator(
+        iframeDocument.body,
+        NodeFilter.SHOW_COMMENT,
+        { acceptNode: () => NodeFilter.FILTER_ACCEPT }
+      );
+      
+      let commentNode;
+      while (commentNode = iterator.nextNode()) {
+        const commentText = commentNode.nodeValue?.trim();
+        if (commentText && commentText.startsWith('[[#') && commentText.endsWith(']]')) {
+          allComments.push({
+            node: commentNode,
+            id: commentText.substring(3, 7) // Extract the ID from [[#xxxx]]
+          });
+        }
+      }
+      
+      // Remove existing highlights
+      const existingHighlights = iframeDocument.querySelectorAll('.highlighted');
+      existingHighlights.forEach(el => {
+        el.classList.remove('highlighted');
+      });
+      
+      // Check if we have a case where start and end IDs are the same (single element highlighting)
+      const isSingleElementHighlight = startMarkerId === endMarkerId;
+      
+      if (isSingleElementHighlight) {
+        // Find all occurrences of the ID
+        const markersWithId = allComments.filter(comment => comment.id === startMarkerId);
+        
+        if (markersWithId.length >= 2) {
+          // Find pairs of comments (start/end) with the same ID
+          for (let i = 0; i < markersWithId.length - 1; i++) {
+            const currentComment = markersWithId[i];
+            const nextComment = markersWithId[i + 1];
+            
+            // Find all elements between these two comments
+            const elementsToHighlight = [];
+            let currentNode = currentComment.node.nextSibling;
+            
+            while (currentNode && currentNode !== nextComment.node) {
+              if (currentNode.nodeType === Node.ELEMENT_NODE) {
+                elementsToHighlight.push(currentNode);
+              }
+              currentNode = currentNode.nextSibling;
+            }
+            
+            // Highlight all elements found
+            elementsToHighlight.forEach(el => {
+              (el as Element).classList.add('highlighted');
+            });
+            
+            // If we found elements to highlight, scroll to the first one
+            if (elementsToHighlight.length > 0) {
+              (elementsToHighlight[0] as HTMLElement).scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+              });
+              
+              // Only highlight the first occurrence and break
+              break;
+            }
+          }
+        } else {
+          console.warn(`Could not find paired comments for ID #${startMarkerId}`);
+        }
+        
+        return;
+      }
+      
+      // If not a single element highlight, continue with the normal start/end processing
+      // Find the start and end comment nodes
+      const startCommentIndex = allComments.findIndex(comment => comment.id === startMarkerId);
+      const endCommentIndex = allComments.findIndex(comment => comment.id === endMarkerId);
+      
+      if (startCommentIndex === -1 || endCommentIndex === -1) {
+        console.warn(`Could not find comment markers for #${startMarkerId} or #${endMarkerId}`);
+        return;
+      }
+      
+      // Elements to highlight are between these two comments (inclusive)
+      let elementsToHighlight = [];
+      
+      // Get the comment nodes
+      const startComment = allComments[startCommentIndex].node;
+      const endComment = allComments[endCommentIndex].node;
+      
+      // Function to collect all elements in document order
+      const collectAllElements = (root: Element | Document): Node[] => {
+        const walker = iframeDocument.createTreeWalker(
+          root,
+          NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_COMMENT,
+          null
+        );
+        
+        const nodes = [];
+        let node;
+        while (node = walker.nextNode()) {
+          nodes.push(node);
+        }
+        
+        return nodes;
+      };
+      
+      // Get all nodes in document order
+      const allNodes = collectAllElements(iframeDocument.body);
+      
+      // Find the indices of our comment nodes
+      const startCommentDocIndex = allNodes.findIndex(node => 
+        node.nodeType === Node.COMMENT_NODE && 
+        node.nodeValue?.trim() === `[[#${startMarkerId}]]`
+      );
+      
+      const endCommentDocIndex = allNodes.findIndex(node => 
+        node.nodeType === Node.COMMENT_NODE && 
+        node.nodeValue?.trim() === `[[#${endMarkerId}]]`
+      );
+      
+      if (startCommentDocIndex !== -1 && endCommentDocIndex !== -1) {
+        // Get all elements between these indices (inclusive of the elements right after comments)
+        for (let i = startCommentDocIndex + 1; i <= endCommentDocIndex; i++) {
+          const node = allNodes[i];
+          if (node && node.nodeType === Node.ELEMENT_NODE) {
+            elementsToHighlight.push(node);
+          }
+        }
+      }
+      
+      // Highlight all collected nodes
+      elementsToHighlight.forEach(node => {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          (node as Element).classList.add('highlighted');
+        }
+      });
+      
+      // Find a good element to scroll to (preferably the first highlighted element)
+      if (elementsToHighlight.length > 0) {
+        // Find the first element that's not a comment
+        const firstElement = elementsToHighlight.find(node => 
+          node.nodeType === Node.ELEMENT_NODE
+        ) as Element;
+        
+        if (firstElement) {
+          // Scroll to this element
+          firstElement.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+        }
+      }
+    };
+
     const handleLoad = () => {
       const iframeDocument = iframe.contentDocument;
       if (!iframeDocument) return;
@@ -531,6 +707,94 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         
         // Call page-based document specific handler
         handlePageBasedDocumentLoad();
+        return;
+      }
+      
+      // Handle international filings (20-F, 40-F, 6-K)
+      if (isInternationalFiling(document.sourceType)) {
+        const style = iframeDocument.createElement('style');
+        style.textContent = `
+          /* Remove borders for international filings */
+          body, div, p, span {
+            border: none !important;
+          }
+          
+          /* Highlighted elements */
+          .highlighted {
+            background-color: yellow !important;
+          }
+          .highlighted * {
+            background-color: transparent !important;
+          }
+          
+          /* Responsive layout styles */
+          body {
+            transform-origin: top left;
+            transform: scale(${zoomLevel});
+            width: ${100 / zoomLevel}%;
+            overflow-x: visible;
+            background-color: white;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          
+          /* Remove borders and allow document to flow naturally */
+          div {
+            border: none !important;
+            background-color: transparent !important;
+            max-width: none !important;
+            width: auto !important;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+          }
+          
+          /* Ensure text doesn't get cut off */
+          div > font, p > font, span > font, font {
+            display: inline-block;
+            max-width: none !important;
+            width: auto !important;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+          }
+          
+          /* Allow text to wrap properly */
+          p, span, div {
+            white-space: normal !important;
+            overflow-wrap: break-word !important;
+            word-wrap: break-word !important;
+          }
+          
+          /* Improve table rendering */
+          table {
+            max-width: 100%;
+            table-layout: auto;
+            border-collapse: collapse;
+            border: none !important;
+            width: auto !important;
+          }
+          
+          /* Ensure table cells can break properly */
+          td, th {
+            word-break: break-word;
+            overflow-wrap: break-word;
+          }
+          
+          /* Override any container styles that might add borders */
+          .page-container, 
+          .captide-page, 
+          div[class*="page"],
+          [id*="page"] {
+            border: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background-color: transparent !important;
+            max-width: none !important;
+          }
+        `;
+        iframeDocument.head.appendChild(style);
+        
+        // Call international filing specific handler
+        handleInternationalFilingHighlight();
         return;
       }
 
