@@ -288,3 +288,23 @@ Hook for accessing the DocumentViewer context.
 ## 📝 License
 
 MIT 
+
+## Shareable Links
+
+The shareable links feature adds small link buttons to highlighted document elements, allowing users to easily share links to specific sections.
+
+### Enabling Shareable Links
+
+```jsx
+<DocumentViewer 
+  enableShareableLinks={true} 
+  shareableLinkBaseUrl="https://your-app-domain.com" 
+/>
+```
+
+### How It Works
+
+1. Link buttons (chain icons) appear at the top of each highlighted section
+2. Users click the button to reveal a tooltip with copy options
+3. Users click "Copy" to get a shareable link
+4. Recipients of the link see the same document with the same highlight 

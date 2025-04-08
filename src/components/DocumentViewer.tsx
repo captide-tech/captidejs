@@ -1,8 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useDocumentViewer } from '../contexts/DocumentViewerContext';
 import { SourceType } from '../types';
+import ShareableLinkTooltip from './ShareableLinkTooltip';
+import { generateShareableLink } from '../utils/shareableLinks';
 
-interface DocumentViewerProps {
+export interface DocumentViewerProps {
   /**
    * Optional custom CSS class name
    */
@@ -18,6 +20,25 @@ interface DocumentViewerProps {
    * @default true
    */
   showZoomControls?: boolean;
+
+  /**
+   * Whether to explicitly disable the hover-to-share feature
+   * Set this to false to disable sharing even when shareableLinkBaseUrl is provided
+   * @default true
+   */
+  enableShareableLinks?: boolean;
+  
+  /**
+   * Base URL for shareable links
+   * When provided, sharing features are automatically enabled (unless explicitly disabled)
+   */
+  shareableLinkBaseUrl?: string;
+
+  /**
+   * Color for the shareable link button
+   * @default #2563eb
+   */
+  shareableLinkButtonColor?: string;
 }
 
 /**
@@ -32,12 +53,19 @@ interface DocumentViewerProps {
  * - Smart element highlighting with clustering
  * - Efficient document reloading on content change
  * - Zoom controls for adjusting document scale
+ * - Hover-to-share functionality for highlighted elements
  */
 const DocumentViewer: React.FC<DocumentViewerProps> = ({ 
   className = 'w-full h-full',
   style,
-  showZoomControls = true
+  showZoomControls = true,
+  enableShareableLinks = true,
+  shareableLinkBaseUrl,
+  shareableLinkButtonColor = '#2563eb'
 }) => {
+  // Sharing is enabled if shareableLinkBaseUrl is provided AND enableShareableLinks is not explicitly false
+  const areShareableLinksEnabled = !!shareableLinkBaseUrl && enableShareableLinks !== false;
+  
   const { 
     document, 
     highlightedElementId, 
@@ -52,6 +80,11 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const previousSourceTypeRef = useRef<string | null>(null);
   const previousZoomLevelRef = useRef<number>(1.0);
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  // State for the shareable link tooltip
+  const [tooltipVisible, setTooltipVisible] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+  const [tooltipElementId, setTooltipElementId] = useState<string | null>(null);
 
   /**
    * Process HTML content for 8-K documents to identify page breaks and create page containers
@@ -293,6 +326,348 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const isInternationalFiling = (sourceType: string): boolean => {
     return sourceType === '20-F' || sourceType === '40-F' || sourceType === '6-K';
   };
+
+  // Helper function to handle shareable link functionality for highlighted elements
+  const setupShareableLinkButtons = () => {
+    console.log('Setting up shareable link buttons');
+    
+    if (!areShareableLinksEnabled || !iframeRef.current || !iframeRef.current.contentDocument) {
+      console.log('Cannot setup buttons - missing prerequisites');
+      return;
+    }
+
+    const iframeDocument = iframeRef.current.contentDocument;
+    const iframeWindow = iframeRef.current.contentWindow;
+    
+    if (!iframeDocument || !iframeWindow) {
+      console.log('Missing iframe document or window');
+      return;
+    }
+    
+    // First, clean up any existing buttons
+    console.log('Removing existing buttons');
+    const existingButtons = iframeDocument.querySelectorAll('.shareable-link-button');
+    existingButtons.forEach(button => button.remove());
+    
+    // Add global styles for buttons
+    console.log('Adding button styles');
+    let linkButtonStyle = iframeDocument.getElementById('shareable-link-button-styles');
+    if (!linkButtonStyle) {
+      linkButtonStyle = iframeDocument.createElement('style');
+      linkButtonStyle.id = 'shareable-link-button-styles';
+      iframeDocument.head.appendChild(linkButtonStyle);
+    }
+    
+    linkButtonStyle.textContent = `
+      .shareable-link-button {
+        position: absolute !important;
+        top: -10px !important;
+        right: 5px !important;
+        width: 28px !important;
+        height: 28px !important;
+        min-width: 28px !important;
+        min-height: 28px !important;
+        background-color: ${shareableLinkButtonColor} !important;
+        color: white !important;
+        border-radius: 50% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        cursor: pointer !important;
+        border: 2px solid white !important;
+        z-index: 100000 !important;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+        transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease, background-color 0.2s ease !important;
+        pointer-events: auto !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+      }
+      
+      .highlighted:hover .shareable-link-button, 
+      .page-highlighted:hover .shareable-link-button {
+        opacity: 0.9 !important;
+        visibility: visible !important;
+        background-color: ${shareableLinkButtonColor} !important;
+      }
+      
+      .shareable-link-button:hover {
+        background-color: ${shareableLinkButtonColor === '#2563eb' ? '#1d4ed8' : shareableLinkButtonColor} !important;
+        transform: scale(1.1) !important;
+        opacity: 1 !important;
+      }
+
+      .highlighted {
+        position: relative !important;
+        margin-top: 12px !important;  /* Add margin to allow space for the button */
+        padding-right: 5px !important; /* Add a bit of padding on the right for the button */
+      }
+    `;
+    
+    // Find all highlighted elements
+    console.log('Finding highlighted elements');
+    const highlightedElements = iframeDocument.querySelectorAll('.highlighted');
+    console.log(`Found ${highlightedElements.length} highlighted elements`);
+    
+    // Create a function to add a button to an element
+    const addButtonToElement = (element: Element, elementId: string, isPage = false) => {
+      console.log(`Adding button for elementId: ${elementId}`);
+      
+      // Ensure the element has position relative for absolute positioning of children
+      (element as HTMLElement).style.position = 'relative';
+      
+      // Create the button element
+      const linkButton = iframeDocument.createElement('button');
+      linkButton.className = 'shareable-link-button';
+      linkButton.title = isPage ? 'Click to copy link to this page' : 'Click to copy link to this highlight';
+      linkButton.setAttribute('data-share-id', elementId);
+      
+      // Add inline styles for maximum compatibility
+      linkButton.style.position = 'absolute';
+      linkButton.style.top = '-10px';  // Slightly higher placement
+      linkButton.style.right = '5px';
+      linkButton.style.width = '24px';  // Slightly smaller button
+      linkButton.style.height = '24px'; // Slightly smaller button
+      linkButton.style.minWidth = '24px'; // Prevent squeezing
+      linkButton.style.minHeight = '24px'; // Prevent squeezing
+      linkButton.style.backgroundColor = shareableLinkButtonColor;
+      linkButton.style.color = 'white';
+      linkButton.style.borderRadius = '50%';
+      linkButton.style.display = 'flex';
+      linkButton.style.alignItems = 'center';
+      linkButton.style.justifyContent = 'center';
+      linkButton.style.cursor = 'pointer';
+      linkButton.style.border = '2px solid white';
+      linkButton.style.zIndex = '100000';
+      linkButton.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.3)';
+      linkButton.style.opacity = '0';
+      linkButton.style.visibility = 'hidden';
+      
+      // Use a variable to track the copied state
+      let isCopied = false;
+      
+      // Add event handlers to ensure consistent styling
+      // For hover effect
+      linkButton.addEventListener('mouseenter', () => {
+        linkButton.style.transform = 'scale(1.1)';
+        linkButton.style.opacity = '1';
+        // Always ensure the background color is set when hovering directly over the button
+        linkButton.style.backgroundColor = shareableLinkButtonColor === '#2563eb' ? '#1d4ed8' : shareableLinkButtonColor;
+      });
+      
+      // For hover out effect
+      linkButton.addEventListener('mouseleave', () => {
+        linkButton.style.transform = 'scale(1)';
+        // Ensure the background color is preserved on mouse leave
+        linkButton.style.backgroundColor = shareableLinkButtonColor;
+        linkButton.style.opacity = '0.9';
+      });
+      
+      // Add hover event handlers to parent element
+      element.addEventListener('mouseenter', () => {
+        linkButton.style.visibility = 'visible';
+        linkButton.style.opacity = '0.9';
+        // Always ensure the button has its background color when parent is hovered
+        linkButton.style.backgroundColor = shareableLinkButtonColor;
+      });
+      
+      element.addEventListener('mouseleave', () => {
+        // Only hide if not in copied state animation
+        if (!isCopied) {
+          linkButton.style.visibility = 'hidden';
+          linkButton.style.opacity = '0';
+        }
+      });
+      
+      // SVG to use based on copied state
+      const updateButtonIcon = (copied = false) => {
+        // Show either checkmark or chain link icon
+        linkButton.innerHTML = copied 
+          ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>`
+          : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+            </svg>`;
+      };
+      
+      // Initial icon
+      updateButtonIcon();
+      
+      // Add click handler to copy link directly
+      linkButton.addEventListener('click', async (event: Event) => {
+        console.log(`Button clicked for ${elementId}`);
+        event.stopPropagation();
+        event.preventDefault();
+        
+        // Copy the link to clipboard
+        if (document) {
+          const success = await copyLinkToClipboard(document.sourceLink, elementId);
+          
+          if (success) {
+            // Track copied state
+            isCopied = true;
+            
+            // Show checkmark and ensure background color is preserved
+            updateButtonIcon(true);
+            linkButton.style.backgroundColor = shareableLinkButtonColor;
+            
+            // Revert back to chain icon after 2 seconds
+            setTimeout(() => {
+              isCopied = false;
+              updateButtonIcon(false);
+              
+              // Always reset the background color when returning to normal state
+              linkButton.style.backgroundColor = shareableLinkButtonColor;
+              
+              // If mouse is no longer over the element, hide the button
+              if (!element.matches(':hover')) {
+                linkButton.style.visibility = 'hidden';
+                linkButton.style.opacity = '0';
+              }
+            }, 2000);
+          }
+        }
+      });
+      
+      // Add the button to the element
+      element.appendChild(linkButton);
+      console.log('Button added to element');
+    };
+    
+    // Process regular highlighted elements
+    highlightedElements.forEach(element => {
+      // Get element ID
+      const uniqueId = element.getAttribute('unique_id') || 
+                       element.getAttribute('unique-id') || 
+                       element.getAttribute('id');
+      
+      // Custom ID for the tooltip or use highlightedElementId
+      const elementId = uniqueId ? `#${uniqueId.replace(/[#\[\]]/g, '')}` : highlightedElementId;
+      
+      if (elementId) {
+        addButtonToElement(element, elementId);
+      }
+    });
+    
+    // Process 8-K document pages
+    if (document?.sourceType === '8-K') {
+      console.log('Processing 8-K document pages');
+      const pageContainers = iframeDocument.querySelectorAll('.page-container.page-highlighted');
+      console.log(`Found ${pageContainers.length} highlighted page containers`);
+      
+      pageContainers.forEach(element => {
+        const pageNumber = element.getAttribute('data-page');
+        if (pageNumber !== null) {
+          // Format the page ID 
+          const pageId = `#f234${pageNumber.padStart(4, '0')}`;
+          addButtonToElement(element, pageId, true);
+        }
+      });
+    }
+    
+    console.log('Shareable link buttons setup complete');
+  };
+  
+  // Close the tooltip
+  const closeTooltip = () => {
+    console.log('Closing tooltip');
+    setTooltipVisible(false);
+    setTooltipElementId(null);
+  };
+
+  // Set tooltip visibility with logging
+  const showTooltip = (position: { x: number, y: number }, elementId: string) => {
+    console.log(`Showing tooltip at x:${position.x}, y:${position.y} for id:${elementId}`);
+    setTooltipPosition(position);
+    setTooltipElementId(elementId);
+    setTooltipVisible(true);
+  };
+
+  // Copy link to clipboard and show success animation
+  const copyLinkToClipboard = async (sourceLink: string, elementId: string) => {
+    try {
+      const shareableLink = generateShareableLink(sourceLink, elementId, shareableLinkBaseUrl);
+      await navigator.clipboard.writeText(shareableLink);
+      
+      console.log(`Link copied to clipboard: ${shareableLink}`);
+      return true;
+    } catch (error) {
+      console.error('Failed to copy link to clipboard:', error);
+      return false;
+    }
+  };
+
+  // Helper function to highlight elements in a range between two highlighted elements
+  function highlightElementsInRange(range: Range, commonAncestor: Element, iframeDocument: Document): void {
+    // Create a tree walker to iterate through all elements in the common ancestor
+    const walker = iframeDocument.createTreeWalker(
+      commonAncestor,
+      NodeFilter.SHOW_ELEMENT,
+      {
+        acceptNode: function(node: Node): number {
+          // Skip elements that are already highlighted
+          if ((node as Element).classList && (node as Element).classList.contains('highlighted')) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          
+          // Accept nodes that are fully contained within the range
+          if (range.intersectsNode(node)) {
+            return NodeFilter.FILTER_ACCEPT;
+          }
+          
+          return NodeFilter.FILTER_SKIP;
+        }
+      } as NodeFilter
+    );
+    
+    // Walk through all elements in the range and highlight them
+    let currentNode = walker.nextNode() as Element | null;
+    while (currentNode) {
+      // Only highlight elements that contain direct text content or are tables
+      const shouldHighlight = (
+        // Table elements
+        currentNode.tagName === 'TABLE' || 
+        currentNode.tagName === 'TR' || 
+        currentNode.tagName === 'TD' || 
+        currentNode.tagName === 'TH' ||
+        // Elements with direct text content
+        (currentNode.childNodes && Array.from(currentNode.childNodes).some((child: ChildNode) => 
+          child.nodeType === Node.TEXT_NODE && 
+          child.textContent && 
+          child.textContent.trim().length > 0
+        )) ||
+        // Special elements that should always be highlighted
+        currentNode.tagName === 'IX:NONFRACTION' ||
+        currentNode.tagName === 'SPAN' ||
+        // For tables, highlight the table container too
+        currentNode.classList && (
+          currentNode.classList.contains('table') || 
+          currentNode.classList.contains('financial-table')
+        )
+      );
+      
+      if (shouldHighlight) {
+        currentNode.classList.add('highlighted');
+      }
+      
+      currentNode = walker.nextNode() as Element | null;
+    }
+    
+    // Special handling for tables - make sure we catch the entire table
+    const tables = commonAncestor.querySelectorAll('table');
+    tables.forEach((table: Element) => {
+      // Check if any part of the table is within the range
+      if (range.intersectsNode(table)) {
+        // Highlight the table and all its child elements
+        table.classList.add('highlighted');
+        const tableElements = table.querySelectorAll('*');
+        tableElements.forEach((el: Element) => {
+          el.classList.add('highlighted');
+        });
+      }
+    });
+  }
 
   // Handle document loading and highlighting
   useEffect(() => {
@@ -1126,6 +1501,11 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         }
       `;
       iframeDocument.head.appendChild(generalStyle);
+
+      // Setup shareable link buttons after all other processing
+      setTimeout(() => {
+        setupShareableLinkButtons();
+      }, 500); // Give time for all highlights to be applied
     };
 
     // Get HTML content based on document type
@@ -1221,6 +1601,35 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     return () => iframe.removeEventListener('load', handleLoad);
   }, [document, highlightedElementId]); // Remove zoomLevel from dependencies
 
+  // Apply hover handlers when highlighting changes
+  useEffect(() => {
+    // Give time for highlighting to be applied
+    const timeoutId = setTimeout(() => {
+      setupShareableLinkButtons();
+    }, 1000);
+    
+    return () => clearTimeout(timeoutId);
+  }, [highlightedElementId, document]); // Remove copiedButtons
+
+  // Add event listener to handle clicks outside tooltip to close it
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (tooltipVisible) {
+        console.log('Click detected outside tooltip');
+        // Only close if click is not inside the tooltip itself
+        const tooltipContainer = window.document.querySelector('.shareable-link-tooltip-container');
+        if (tooltipContainer && !tooltipContainer.contains(event.target as Node)) {
+          closeTooltip();
+        }
+      }
+    };
+    
+    window.document.addEventListener('click', handleClickOutside);
+    return () => {
+      window.document.removeEventListener('click', handleClickOutside);
+    };
+  }, [tooltipVisible]);
+
   // Add a resize listener in the parent component
   useEffect(() => {
     const handleIframeResize = (event: MessageEvent) => {
@@ -1287,83 +1696,12 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     });
   }, [document]);
 
-  // Helper function to highlight elements in a range between two highlighted elements
-  function highlightElementsInRange(range: Range, commonAncestor: Element, iframeDocument: Document): void {
-    // Create a tree walker to iterate through all elements in the common ancestor
-    const walker = iframeDocument.createTreeWalker(
-      commonAncestor,
-      NodeFilter.SHOW_ELEMENT,
-      {
-        acceptNode: function(node: Node): number {
-          // Skip elements that are already highlighted
-          if ((node as Element).classList && (node as Element).classList.contains('highlighted')) {
-            return NodeFilter.FILTER_REJECT;
-          }
-          
-          // Accept nodes that are fully contained within the range
-          if (range.intersectsNode(node)) {
-            return NodeFilter.FILTER_ACCEPT;
-          }
-          
-          return NodeFilter.FILTER_SKIP;
-        }
-      } as NodeFilter
-    );
-    
-    // Walk through all elements in the range and highlight them
-    let currentNode = walker.nextNode() as Element | null;
-    while (currentNode) {
-      // Only highlight elements that contain direct text content or are tables
-      const shouldHighlight = (
-        // Table elements
-        currentNode.tagName === 'TABLE' || 
-        currentNode.tagName === 'TR' || 
-        currentNode.tagName === 'TD' || 
-        currentNode.tagName === 'TH' ||
-        // Elements with direct text content
-        (currentNode.childNodes && Array.from(currentNode.childNodes).some((child: ChildNode) => 
-          child.nodeType === Node.TEXT_NODE && 
-          child.textContent && 
-          child.textContent.trim().length > 0
-        )) ||
-        // Special elements that should always be highlighted
-        currentNode.tagName === 'IX:NONFRACTION' ||
-        currentNode.tagName === 'SPAN' ||
-        // For tables, highlight the table container too
-        currentNode.classList && (
-          currentNode.classList.contains('table') || 
-          currentNode.classList.contains('financial-table')
-        )
-      );
-      
-      if (shouldHighlight) {
-        currentNode.classList.add('highlighted');
-      }
-      
-      currentNode = walker.nextNode() as Element | null;
-    }
-    
-    // Special handling for tables - make sure we catch the entire table
-    const tables = commonAncestor.querySelectorAll('table');
-    tables.forEach((table: Element) => {
-      // Check if any part of the table is within the range
-      if (range.intersectsNode(table)) {
-        // Highlight the table and all its child elements
-        table.classList.add('highlighted');
-        const tableElements = table.querySelectorAll('*');
-        tableElements.forEach((el: Element) => {
-          el.classList.add('highlighted');
-        });
-      }
-    });
-  }
-
   if (isLoading) {
-    return <div className={className} style={style}>Loading document...</div>;
+    return <div className={className} style={style}></div>;
   }
 
   if (!document) {
-    return <div className={className} style={style}>No document selected</div>;
+    return <div className={className} style={style}></div>;
   }
 
   return (
@@ -1409,6 +1747,19 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         </div>
       )}
       
+      {/* Shareable Link Tooltip */}
+      {areShareableLinksEnabled && document && (
+        <ShareableLinkTooltip
+          isVisible={tooltipVisible}
+          position={tooltipPosition}
+          sourceLink={document.sourceLink}
+          elementId={tooltipElementId}
+          baseUrl={shareableLinkBaseUrl}
+          onClose={closeTooltip}
+          buttonColor={shareableLinkButtonColor}
+        />
+      )}
+      
       <iframe
         ref={iframeRef}
         className={className}
@@ -1418,7 +1769,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           height: '100%',
           overflow: 'auto',
         }}
-        sandbox="allow-same-origin allow-popups"
+        sandbox="allow-same-origin allow-popups allow-scripts"
         // Add a tabIndex to make the iframe focusable by keyboard
         tabIndex={0}
       />

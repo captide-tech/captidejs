@@ -7,6 +7,9 @@ export {
   useDocumentViewer
 } from './contexts/DocumentViewerContext';
 
+// Export utils
+export { parseDocumentViewerParams } from './utils/shareableLinks';
+
 // Export types
 export type {
   SourceDocument,
@@ -16,4 +19,7 @@ export type {
   DocumentViewerState,
   DocumentViewerContextValue,
   FetchDocumentFn
-} from './types'; 
+} from './types';
+
+// Export component prop types
+export type { DocumentViewerProps } from './components/DocumentViewer'; 
