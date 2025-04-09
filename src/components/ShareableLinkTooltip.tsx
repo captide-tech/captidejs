@@ -41,6 +41,12 @@ interface ShareableLinkTooltipProps {
    * @default #2563eb
    */
   buttonColor?: string;
+  
+  /**
+   * Custom route path for the document viewer
+   * @default document-viewer
+   */
+  viewerRoutePath?: string;
 }
 
 /**
@@ -54,12 +60,13 @@ const ShareableLinkTooltip: React.FC<ShareableLinkTooltipProps> = ({
   elementId,
   baseUrl,
   onClose,
-  buttonColor = '#2563eb'
+  buttonColor = '#2563eb',
+  viewerRoutePath = 'document-viewer'
 }) => {
   const [copied, setCopied] = useState(false);
   
   // Generate the shareable link
-  const shareableLink = generateShareableLink(sourceLink, elementId, baseUrl);
+  const shareableLink = generateShareableLink(sourceLink, elementId, baseUrl, viewerRoutePath);
   
   // Debug logging
   React.useEffect(() => {

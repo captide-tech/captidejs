@@ -39,6 +39,12 @@ export interface DocumentViewerProps {
    * @default #2563eb
    */
   shareableLinkButtonColor?: string;
+  
+  /**
+   * Custom route path for the document viewer
+   * @default document-viewer
+   */
+  viewerRoutePath?: string;
 }
 
 /**
@@ -61,7 +67,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   showZoomControls = true,
   enableShareableLinks = true,
   shareableLinkBaseUrl,
-  shareableLinkButtonColor = '#2563eb'
+  shareableLinkButtonColor = '#2563eb',
+  viewerRoutePath = 'document-viewer'
 }) => {
   // Sharing is enabled if shareableLinkBaseUrl is provided AND enableShareableLinks is not explicitly false
   const areShareableLinksEnabled = !!shareableLinkBaseUrl && enableShareableLinks !== false;
@@ -587,7 +594,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   // Copy link to clipboard and show success animation
   const copyLinkToClipboard = async (sourceLink: string, elementId: string) => {
     try {
-      const shareableLink = generateShareableLink(sourceLink, elementId, shareableLinkBaseUrl);
+      const shareableLink = generateShareableLink(sourceLink, elementId, shareableLinkBaseUrl, viewerRoutePath);
       await navigator.clipboard.writeText(shareableLink);
       
       console.log(`Link copied to clipboard: ${shareableLink}`);
@@ -1757,6 +1764,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           baseUrl={shareableLinkBaseUrl}
           onClose={closeTooltip}
           buttonColor={shareableLinkButtonColor}
+          viewerRoutePath={viewerRoutePath}
         />
       )}
       
