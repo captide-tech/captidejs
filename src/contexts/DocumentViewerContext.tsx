@@ -80,8 +80,7 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
   // State for the DocumentViewer
   const [state, setState] = useState<DocumentViewerState>(initialState);
   
-  // Use a ref instead of state for the fetch function to prevent unnecessary re-renders
-  // and to avoid any potential issues during initialization
+  // Create a fetch function ref to avoid unnecessary re-renders
   const fetchDocumentFnRef = useRef<FetchDocumentFn | null>(null);
   
   // Set the fetch function ref when provided
@@ -184,10 +183,11 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
       );
     }
 
-    // Ensure we have a fetch function
-    if (!fetchDocumentFnRef.current) {
+    // Ensure we have a fetch function - MODIFIED to use providedFetchFn as fallback
+    const fetchFn = fetchDocumentFnRef.current || providedFetchFn;
+    if (!fetchFn) {
       throw new Error(
-        'No fetchDocumentFn provided. Use setFetchDocumentFn to set a function for fetching documents.'
+        'No fetchDocumentFn provided. Use setFetchDocumentFn to set a function for fetching documents or provide it to the DocumentViewerProvider.'
       );
     }
 
@@ -280,7 +280,7 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
 
     try {
       // Fetch the document using the consumer-provided function
-      const document = await fetchDocumentFnRef.current(sourceLink);
+      const document = await fetchFn(sourceLink);
       
       // Ensure sourceLink is set on the document
       const documentWithSourceLink: SourceDocument = {
@@ -366,7 +366,13 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
       
       // Otherwise, load the document (using function reference rather than direct call)
       updateDocumentViewer({ isLoading: true });
-      fetchDocumentFnRef.current?.(sourceLink)
+      const fetchFn = fetchDocumentFnRef.current || providedFetchFn;
+      if (!fetchFn) {
+        updateDocumentViewer({ isLoading: false });
+        throw new Error('No fetchDocumentFn provided. Cannot load document for the selected tab.');
+      }
+      
+      fetchFn(sourceLink)
         .then(document => {
           // Ensure sourceLink is set on the document
           const documentWithSourceLink: SourceDocument = {
@@ -423,7 +429,13 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
       updateDocumentViewer({ tabs: currentTabs, isLoading: true });
       
       // Load the document (using function reference rather than direct call)
-      fetchDocumentFnRef.current?.(sourceLink)
+      const fetchFn = fetchDocumentFnRef.current || providedFetchFn;
+      if (!fetchFn) {
+        updateDocumentViewer({ isLoading: false });
+        throw new Error('No fetchDocumentFn provided. Cannot load document for the new tab.');
+      }
+      
+      fetchFn(sourceLink)
         .then(document => {
           // Ensure sourceLink is set on the document
           const documentWithSourceLink: SourceDocument = {
