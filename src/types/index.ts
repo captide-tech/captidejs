@@ -5,7 +5,7 @@
 /**
  * Defines the possible types of source documents
  */
-export type SourceType = '10-K' | '10-Q' | '8-K' | 'transcript' | 'DEF 14A' | 'DEFM14A' | 'DEF 14C' | 'DEFM14C' | '20-F' | '40-F' | '6-K';
+export type SourceType = '10-K' | '10-Q' | '8-K' | 'transcript' | 'DEF 14A' | 'DEFM14A' | 'DEF 14C' | 'DEFM14C' | '20-F' | '40-F' | '6-K' | 'S-1';
 
 // Extend the Window interface to include the highlightCaptidePage function
 declare global {

@@ -331,7 +331,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
 
   // Helper function to check if document is an international filing type
   const isInternationalFiling = (sourceType: string): boolean => {
-    return sourceType === '20-F' || sourceType === '40-F' || sourceType === '6-K';
+    return sourceType === '20-F' || sourceType === '40-F' || sourceType === '6-K' || sourceType === 'S-1';
   };
 
   // Helper function to handle shareable link functionality for highlighted elements
@@ -870,7 +870,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       }
     };
 
-    // Handle highlighting for international filings (20-F, 40-F, 6-K)
+    // Handle highlighting for international filings (20-F, 40-F, 6-K, S-1)
     const handleInternationalFilingHighlight = () => {
       const iframeDocument = iframe.contentDocument;
       const iframeWindow = iframe.contentWindow;
@@ -880,11 +880,17 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       // We need to extract the start and end comment IDs (each 4 characters)
       const cleanId = highlightedElementId.replace('#', '');
       
-      // First 4 characters represent the start marker, last 4 characters represent the end marker
-      const startMarkerId = cleanId.substring(0, 4);
-      const endMarkerId = cleanId.substring(4, 8);
+      // Check if this is a repeating ID pattern (e.g., #54b954b9)
+      const isRepeatingIdPattern = cleanId.length === 8 && 
+                                  cleanId.substring(0, 4) === cleanId.substring(4, 8);
       
-      console.log(`Highlighting international filing from marker #${startMarkerId} to #${endMarkerId}`);
+      // First 4 characters represent the start marker, last 4 characters represent the end marker
+      // For repeating pattern like #54b954b9, both start and end markers are the same
+      const startMarkerId = cleanId.substring(0, 4);
+      const endMarkerId = isRepeatingIdPattern ? startMarkerId : 
+                         (cleanId.length >= 8 ? cleanId.substring(4, 8) : startMarkerId);
+      
+      console.log(`Highlighting international filing from marker #${startMarkerId} to #${endMarkerId}, isRepeatingIdPattern: ${isRepeatingIdPattern}`);
       
       // Look for comments with these IDs in the format <!--[[#xxxx]]-->
       const allComments = [];
@@ -902,8 +908,11 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             node: commentNode,
             id: commentText.substring(3, 7) // Extract the ID from [[#xxxx]]
           });
+          console.log(`Found comment with ID: ${commentText.substring(3, 7)}, full text: "${commentText}"`);
         }
       }
+      
+      console.log(`Total comments found: ${allComments.length}`);
       
       // Remove existing highlights
       const existingHighlights = iframeDocument.querySelectorAll('.highlighted');
@@ -911,29 +920,69 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         el.classList.remove('highlighted');
       });
       
+      // For S-1 documents with repeated ID patterns like #54b954b9, we'll check if it's a repeating pattern
+      // and treat it as a single ID highlight if it is
+      const isSingleIdRepeated = cleanId.length === 8 && 
+                               startMarkerId === endMarkerId;
+      
       // Check if we have a case where start and end IDs are the same (single element highlighting)
-      const isSingleElementHighlight = startMarkerId === endMarkerId;
+      // This includes cases where the ID is repeated like #54b954b9
+      const isSingleElementHighlight = startMarkerId === endMarkerId || isRepeatingIdPattern;
+      console.log(`Is single element highlight: ${isSingleElementHighlight}, startMarkerId: ${startMarkerId}, endMarkerId: ${endMarkerId}`);
       
       if (isSingleElementHighlight) {
         // Find all occurrences of the ID
         const markersWithId = allComments.filter(comment => comment.id === startMarkerId);
+        console.log(`Found ${markersWithId.length} markers with ID ${startMarkerId}`);
         
         if (markersWithId.length >= 2) {
+          // For S-1 documents, we want to process markers in pairs
+          // For other documents, we just need to find matching pairs
+          const step = isRepeatingIdPattern ? 2 : 1;
+          
           // Find pairs of comments (start/end) with the same ID
-          for (let i = 0; i < markersWithId.length - 1; i++) {
+          for (let i = 0; i < markersWithId.length - 1; i += step) {
+            // For S-1 documents, we need to handle consecutive pairs
             const currentComment = markersWithId[i];
-            const nextComment = markersWithId[i + 1];
+            // If we're near the end of the array, be careful about accessing the next element
+            const nextComment = (i + 1 < markersWithId.length) ? markersWithId[i + 1] : null;
+            
+            if (!nextComment) {
+              console.warn(`No matching end comment found for start comment at index ${i}`);
+              continue;
+            }
+            
+            console.log(`Processing comment pair ${i}/${markersWithId.length - 1}`);
             
             // Find all elements between these two comments
             const elementsToHighlight = [];
             let currentNode = currentComment.node.nextSibling;
             
+            // For single id repeating pattern like #54b954b9, we need to highlight everything between
+            // the comments with the same ID
             while (currentNode && currentNode !== nextComment.node) {
               if (currentNode.nodeType === Node.ELEMENT_NODE) {
                 elementsToHighlight.push(currentNode);
+                console.log(`Added element to highlight: ${(currentNode as Element).tagName}`);
+              } else if (currentNode.nodeType === Node.TEXT_NODE) {
+                // For S-1 documents, text nodes should be highlighted if they contain non-whitespace content
+                const textContent = currentNode.textContent?.trim();
+                if (textContent) {
+                  // Create a span to wrap the text node for highlighting
+                  const span = iframeDocument.createElement('span');
+                  span.classList.add('highlighted');
+                  currentNode.parentNode?.insertBefore(span, currentNode);
+                  span.appendChild(currentNode);
+                  elementsToHighlight.push(span);
+                  // Update currentNode to the newly created span
+                  currentNode = span;
+                  console.log(`Added text node to highlight with content: "${textContent.substring(0, 20)}..."`);
+                }
               }
               currentNode = currentNode.nextSibling;
             }
+            
+            console.log(`Found ${elementsToHighlight.length} elements to highlight between comments`);
             
             // Highlight all elements found
             elementsToHighlight.forEach(el => {
@@ -947,7 +996,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 block: 'start'
               });
               
-              // Only highlight the first occurrence and break
+              // Break after the first successful pair highlighting
               break;
             }
           }
@@ -962,6 +1011,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       // Find the start and end comment nodes
       const startCommentIndex = allComments.findIndex(comment => comment.id === startMarkerId);
       const endCommentIndex = allComments.findIndex(comment => comment.id === endMarkerId);
+      
+      console.log(`Start comment index: ${startCommentIndex}, End comment index: ${endCommentIndex}`);
       
       if (startCommentIndex === -1 || endCommentIndex === -1) {
         console.warn(`Could not find comment markers for #${startMarkerId} or #${endMarkerId}`);
@@ -994,6 +1045,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       
       // Get all nodes in document order
       const allNodes = collectAllElements(iframeDocument.body);
+      console.log(`Total nodes in document: ${allNodes.length}`);
       
       // Find the indices of our comment nodes
       const startCommentDocIndex = allNodes.findIndex(node => 
@@ -1006,15 +1058,24 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         node.nodeValue?.trim() === `[[#${endMarkerId}]]`
       );
       
+      console.log(`Start comment doc index: ${startCommentDocIndex}, End comment doc index: ${endCommentDocIndex}`);
+      
       if (startCommentDocIndex !== -1 && endCommentDocIndex !== -1) {
         // Get all elements between these indices (inclusive of the elements right after comments)
         for (let i = startCommentDocIndex + 1; i <= endCommentDocIndex; i++) {
           const node = allNodes[i];
           if (node && node.nodeType === Node.ELEMENT_NODE) {
             elementsToHighlight.push(node);
+            if (elementsToHighlight.length % 10 === 0) {
+              console.log(`Added ${elementsToHighlight.length} elements to highlight so far...`);
+            }
           }
         }
+      } else {
+        console.warn(`Could not find the actual comments in the document for #${startMarkerId} or #${endMarkerId}`);
       }
+      
+      console.log(`Total elements to highlight: ${elementsToHighlight.length}`);
       
       // Highlight all collected nodes
       elementsToHighlight.forEach(node => {
@@ -1092,7 +1153,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         return;
       }
       
-      // Handle international filings (20-F, 40-F, 6-K)
+      // Handle international filings (20-F, 40-F, 6-K, S-1)
       if (isInternationalFiling(document.sourceType)) {
         const style = iframeDocument.createElement('style');
         style.textContent = `
@@ -1104,9 +1165,19 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           /* Highlighted elements */
           .highlighted {
             background-color: yellow !important;
+            display: inline-block;
           }
+          
+          /* Ensure nested highlighted elements don't have stacked backgrounds */
           .highlighted * {
             background-color: transparent !important;
+          }
+          
+          /* Ensure text nodes wrapped in spans display properly */
+          span.highlighted {
+            display: inline;
+            background-color: yellow !important;
+            color: inherit;
           }
           
           /* Responsive layout styles */
