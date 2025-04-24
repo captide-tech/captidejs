@@ -120,7 +120,7 @@ const ShareableLinkTooltip: React.FC<ShareableLinkTooltipProps> = ({
       style={{
         left: `${position.x}px`,
         top: `${position.y}px`,
-        transform: 'translateX(-50%)', // Center horizontally relative to position
+        transform: 'translateX(-25%)', // Offset slightly to align with the left button
       }}
     >
       {/* Arrow pointing up to the link button */}
@@ -128,7 +128,7 @@ const ShareableLinkTooltip: React.FC<ShareableLinkTooltipProps> = ({
         className="absolute w-4 h-4 bg-white border-t border-l border-gray-200 transform rotate-45"
         style={{
           top: '-2px',
-          left: '50%',
+          left: '25%', // Position arrow to align with the left-side button
           marginLeft: '-2px',
         }}
       />
