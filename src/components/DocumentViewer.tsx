@@ -336,10 +336,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
 
   // Helper function to handle shareable link functionality for highlighted elements
   const setupShareableLinkButtons = () => {
-    console.log('Setting up shareable link buttons');
-    
     if (!areShareableLinksEnabled || !iframeRef.current || !iframeRef.current.contentDocument) {
-      console.log('Cannot setup buttons - missing prerequisites');
       return;
     }
 
@@ -347,17 +344,14 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     const iframeWindow = iframeRef.current.contentWindow;
     
     if (!iframeDocument || !iframeWindow) {
-      console.log('Missing iframe document or window');
       return;
     }
     
     // First, clean up any existing buttons
-    console.log('Removing existing buttons');
     const existingButtons = iframeDocument.querySelectorAll('.shareable-link-button');
     existingButtons.forEach(button => button.remove());
     
     // Add global styles for buttons
-    console.log('Adding button styles');
     let linkButtonStyle = iframeDocument.getElementById('shareable-link-button-styles');
     if (!linkButtonStyle) {
       linkButtonStyle = iframeDocument.createElement('style');
@@ -417,8 +411,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     
     // Create a function to add a button to an element
     const addButtonToElement = (element: Element, elementId: string, isPage = false) => {
-      console.log(`Adding button for elementId: ${elementId}`);
-      
       // Ensure the element has position relative for absolute positioning of children
       (element as HTMLElement).style.position = 'relative';
       
@@ -487,7 +479,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       
       // Add click handler to copy link directly
       linkButton.addEventListener('click', async (event: Event) => {
-        console.log(`Button clicked for ${elementId}`);
         event.stopPropagation();
         event.preventDefault();
         
@@ -517,14 +508,11 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       
       // Add the button to the element
       element.appendChild(linkButton);
-      console.log('Button added to element');
     };
     
     // Handle normal documents (not 8-K)
     if (document?.sourceType !== '8-K') {
-      console.log('Processing regular document highlights');
       const highlightedElements = iframeDocument.querySelectorAll('.highlighted');
-      console.log(`Found ${highlightedElements.length} highlighted elements`);
       
       if (highlightedElements.length > 0) {
         // Convert NodeList to Array for sorting
@@ -581,9 +569,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     }
     // Process 8-K document pages (keep this exactly as it was)
     else if (document?.sourceType === '8-K') {
-      console.log('Processing 8-K document pages');
       const pageContainers = iframeDocument.querySelectorAll('.page-container.page-highlighted');
-      console.log(`Found ${pageContainers.length} highlighted page containers`);
       
       pageContainers.forEach(element => {
         const pageNumber = element.getAttribute('data-page');
@@ -594,20 +580,16 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         }
       });
     }
-    
-    console.log('Shareable link buttons setup complete');
   };
   
   // Close the tooltip
   const closeTooltip = () => {
-    console.log('Closing tooltip');
     setTooltipVisible(false);
     setTooltipElementId(null);
   };
 
   // Set tooltip visibility with logging
   const showTooltip = (position: { x: number, y: number }, elementId: string) => {
-    console.log(`Showing tooltip at x:${position.x}, y:${position.y} for id:${elementId}`);
     setTooltipPosition(position);
     setTooltipElementId(elementId);
     setTooltipVisible(true);
@@ -618,11 +600,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     try {
       const shareableLink = generateShareableLink(sourceLink, elementId, shareableLinkBaseUrl, viewerRoutePath);
       await navigator.clipboard.writeText(shareableLink);
-      
-      console.log(`Link copied to clipboard: ${shareableLink}`);
       return true;
     } catch (error) {
-      console.error('Failed to copy link to clipboard:', error);
       return false;
     }
   };
@@ -912,8 +891,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       const endMarkerId = isRepeatingIdPattern ? startMarkerId : 
                          (cleanId.length >= 8 ? cleanId.substring(4, 8) : startMarkerId);
       
-      console.log(`Highlighting international filing from marker #${startMarkerId} to #${endMarkerId}, isRepeatingIdPattern: ${isRepeatingIdPattern}`);
-      
       // Look for comments with these IDs in the format <!--[[#xxxx]]-->
       const allComments = [];
       const iterator = iframeDocument.createNodeIterator(
@@ -930,11 +907,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             node: commentNode,
             id: commentText.substring(3, 7) // Extract the ID from [[#xxxx]]
           });
-          console.log(`Found comment with ID: ${commentText.substring(3, 7)}, full text: "${commentText}"`);
         }
       }
-      
-      console.log(`Total comments found: ${allComments.length}`);
       
       // Remove existing highlights
       const existingHighlights = iframeDocument.querySelectorAll('.highlighted');
@@ -950,12 +924,10 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       // Check if we have a case where start and end IDs are the same (single element highlighting)
       // This includes cases where the ID is repeated like #54b954b9
       const isSingleElementHighlight = startMarkerId === endMarkerId || isRepeatingIdPattern;
-      console.log(`Is single element highlight: ${isSingleElementHighlight}, startMarkerId: ${startMarkerId}, endMarkerId: ${endMarkerId}`);
       
       if (isSingleElementHighlight) {
         // Find all occurrences of the ID
         const markersWithId = allComments.filter(comment => comment.id === startMarkerId);
-        console.log(`Found ${markersWithId.length} markers with ID ${startMarkerId}`);
         
         if (markersWithId.length >= 2) {
           // For S-1 documents, we want to process markers in pairs
@@ -970,11 +942,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             const nextComment = (i + 1 < markersWithId.length) ? markersWithId[i + 1] : null;
             
             if (!nextComment) {
-              console.warn(`No matching end comment found for start comment at index ${i}`);
               continue;
             }
-            
-            console.log(`Processing comment pair ${i}/${markersWithId.length - 1}`);
             
             // Find all elements between these two comments
             const elementsToHighlight = [];
@@ -985,7 +954,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             while (currentNode && currentNode !== nextComment.node) {
               if (currentNode.nodeType === Node.ELEMENT_NODE) {
                 elementsToHighlight.push(currentNode);
-                console.log(`Added element to highlight: ${(currentNode as Element).tagName}`);
               } else if (currentNode.nodeType === Node.TEXT_NODE) {
                 // For S-1 documents, text nodes should be highlighted if they contain non-whitespace content
                 const textContent = currentNode.textContent?.trim();
@@ -998,13 +966,10 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                   elementsToHighlight.push(span);
                   // Update currentNode to the newly created span
                   currentNode = span;
-                  console.log(`Added text node to highlight with content: "${textContent.substring(0, 20)}..."`);
                 }
               }
               currentNode = currentNode.nextSibling;
             }
-            
-            console.log(`Found ${elementsToHighlight.length} elements to highlight between comments`);
             
             // Highlight all elements found
             elementsToHighlight.forEach(el => {
@@ -1022,8 +987,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
               break;
             }
           }
-        } else {
-          console.warn(`Could not find paired comments for ID #${startMarkerId}`);
         }
         
         return;
@@ -1034,10 +997,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       const startCommentIndex = allComments.findIndex(comment => comment.id === startMarkerId);
       const endCommentIndex = allComments.findIndex(comment => comment.id === endMarkerId);
       
-      console.log(`Start comment index: ${startCommentIndex}, End comment index: ${endCommentIndex}`);
-      
       if (startCommentIndex === -1 || endCommentIndex === -1) {
-        console.warn(`Could not find comment markers for #${startMarkerId} or #${endMarkerId}`);
         return;
       }
       
@@ -1067,7 +1027,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       
       // Get all nodes in document order
       const allNodes = collectAllElements(iframeDocument.body);
-      console.log(`Total nodes in document: ${allNodes.length}`);
       
       // Find the indices of our comment nodes
       const startCommentDocIndex = allNodes.findIndex(node => 
@@ -1080,24 +1039,15 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         node.nodeValue?.trim() === `[[#${endMarkerId}]]`
       );
       
-      console.log(`Start comment doc index: ${startCommentDocIndex}, End comment doc index: ${endCommentDocIndex}`);
-      
       if (startCommentDocIndex !== -1 && endCommentDocIndex !== -1) {
         // Get all elements between these indices (inclusive of the elements right after comments)
         for (let i = startCommentDocIndex + 1; i <= endCommentDocIndex; i++) {
           const node = allNodes[i];
           if (node && node.nodeType === Node.ELEMENT_NODE) {
             elementsToHighlight.push(node);
-            if (elementsToHighlight.length % 10 === 0) {
-              console.log(`Added ${elementsToHighlight.length} elements to highlight so far...`);
-            }
           }
         }
-      } else {
-        console.warn(`Could not find the actual comments in the document for #${startMarkerId} or #${endMarkerId}`);
       }
-      
-      console.log(`Total elements to highlight: ${elementsToHighlight.length}`);
       
       // Highlight all collected nodes
       elementsToHighlight.forEach(node => {
@@ -1441,7 +1391,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 const contentDocument = iframe.contentDocument;
                 
                 if (!contentWindow || !contentDocument) {
-                  console.error('Cannot access iframe content window or document');
                   return;
                 }
                 
@@ -1715,7 +1664,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (tooltipVisible) {
-        console.log('Click detected outside tooltip');
         // Only close if click is not inside the tooltip itself
         const tooltipContainer = window.document.querySelector('.shareable-link-tooltip-container');
         if (tooltipContainer && !tooltipContainer.contains(event.target as Node)) {
@@ -1735,7 +1683,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     const handleIframeResize = (event: MessageEvent) => {
       if (event.data && event.data.type === 'resize') {
         // You could adjust the container or iframe height here if needed
-        console.log('Content height changed:', event.data.height);
       }
     };
     

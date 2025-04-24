@@ -527,20 +527,52 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
         // If there are no tabs left, close the viewer entirely
         closeViewer();
       } else {
-        // Otherwise, load the first tab
+        // Otherwise, load the first tab without making a separate loadDocument call
+        // which would potentially re-add the tab we just removed
+        const nextTab = newTabs[0];
+        
         updateDocumentViewer({
           tabs: newTabs,
           isLoading: true
         });
         
-        // Load the document for the first tab
-        loadDocument(newTabs[0].sourceLink);
+        // Fetch the document directly within this callback
+        const fetchFn = fetchDocumentFnRef.current || providedFetchFn;
+        if (!fetchFn) {
+          updateDocumentViewer({ isLoading: false });
+          throw new Error('No fetchDocumentFn provided. Cannot load document for the next tab.');
+        }
+        
+        fetchFn(nextTab.sourceLink)
+          .then(document => {
+            // Ensure sourceLink is set on the document
+            const documentWithSourceLink: SourceDocument = {
+              ...document,
+              sourceLink: nextTab.sourceLink,
+              highlightedElementId: null
+            };
+            
+            // Update everything in a single state update
+            updateDocumentViewer({
+              document: documentWithSourceLink,
+              tabs: newTabs,
+              isLoading: false,
+              highlightedElementId: null
+            });
+          })
+          .catch(error => {
+            console.error('Failed to load next document after tab close:', error);
+            updateDocumentViewer({ 
+              isLoading: false,
+              tabs: newTabs
+            });
+          });
       }
     } else {
       // Just update the tabs
       updateDocumentViewer({ tabs: newTabs });
     }
-  }, [state.tabs, state.document, updateDocumentViewer, closeViewer, loadDocument]);
+  }, [state.tabs, state.document, updateDocumentViewer, closeViewer, providedFetchFn]);
 
   /**
    * Sets the zoom level
