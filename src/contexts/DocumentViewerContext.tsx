@@ -9,6 +9,12 @@ import {
   SourceType
 } from '../types';
 
+// Define valid source types array based on the SourceType type
+const VALID_SOURCE_TYPES: SourceType[] = [
+  '10-K', '10-Q', '8-K', 'transcript', 'DEF 14A', 'DEFM14A', 
+  'DEF 14C', 'DEFM14C', '20-F', '40-F', '6-K', 'S-1'
+];
+
 // Initial state for the context
 const initialState: DocumentViewerState = {
   document: null,
@@ -40,21 +46,12 @@ interface DocumentViewerProviderProps {
  */
 function extractSourceTypeFromUrl(sourceLink: string): SourceType {
   try {
-    console.log('🔍 Extracting sourceType from:', sourceLink);
     const url = new URL(sourceLink);
     const sourceTypeParam = url.searchParams.get('sourceType');
     
-    // Check if the sourceTypeParam is one of the valid SourceType values
-    if (sourceTypeParam === '10-K' || 
-        sourceTypeParam === '10-Q' || 
-        sourceTypeParam === '8-K' || 
-        sourceTypeParam === 'transcript' ||
-        sourceTypeParam === 'DEF 14A' ||
-        sourceTypeParam === 'DEFM14A' ||
-        sourceTypeParam === 'DEF 14C' ||
-        sourceTypeParam === 'DEFM14C') {
-      console.log('😜Extracted sourceType:', sourceTypeParam);
-      return sourceTypeParam;
+    // Validate that sourceTypeParam is a valid SourceType
+    if (sourceTypeParam && VALID_SOURCE_TYPES.includes(sourceTypeParam as SourceType)) {
+      return sourceTypeParam as SourceType;
     }
     
     // Throw an error if sourceType is missing or invalid
