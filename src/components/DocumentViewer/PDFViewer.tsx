@@ -1,8 +1,27 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { extractPageNumberFromElementId } from './utils/pageUtils';
 
-// We're not importing PDF.js statically anymore
-// This will be dynamically loaded only in browser environments
+// Import types from the pdfjs-dist package (using the types directory)
+import type { PDFDocumentProxy } from 'pdfjs-dist';
+
+// We'll declare these minimal interfaces to avoid import errors,
+// while still providing type checking for our component
+interface ViewerEventBus {
+  on(eventName: string, listener: Function): void;
+  off(eventName: string, listener?: Function): void;
+}
+
+interface ViewerLinkService {
+  setDocument(pdfDocument: PDFDocumentProxy): void;
+  setViewer(pdfViewer: ViewerPdfViewer): void;
+}
+
+interface ViewerPdfViewer {
+  setDocument(pdfDocument: PDFDocumentProxy): void;
+  currentScaleValue: number | string;
+  currentPageNumber: number;
+  getPageView(pageIndex: number): { div: HTMLElement } | undefined;
+}
 
 interface PDFViewerProps {
   sasUrl: string;
@@ -43,14 +62,13 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
   zoomLevel = 1.0,
   highlightedElementId = null
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const viewerRef = useRef<any>(null);
+  const viewerContainerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [pdfJsInitialized, setPdfJsInitialized] = useState(false);
-  const [pdfDocument, setPdfDocument] = useState<any>(null);
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pdfJsLoaded, setPdfJsLoaded] = useState(false);
+  const [viewer, setViewer] = useState<any>(null);
   
   // Only run in browser
   const isBrowser = typeof window !== 'undefined';
@@ -58,21 +76,19 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
   // Initialize PDF.js in browser
   useEffect(() => {
     if (!isBrowser) return;
+    let mounted = true;
 
-    // We're only initializing - no need to return a cleanup
-    const initialize = async () => {
+    const loadPdfJs = async () => {
       try {
-        console.log("Initializing PDF.js and loading worker...");
+        console.log("Loading PDF.js libraries...");
+        
         // Import PDF.js
         const pdfjsLib = await import('pdfjs-dist');
         
         // Set worker source
         const { GlobalWorkerOptions } = await import('pdfjs-dist');
-        
-        // Use explicit HTTPS URL with exact version number and correct file extension (.mjs)
         const workerUrl = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
         GlobalWorkerOptions.workerSrc = workerUrl;
-        console.log(`PDF.js initialized with worker from: ${workerUrl}`);
         
         // Pre-fetch the worker
         try {
@@ -85,219 +101,262 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
           // Ignore preload errors
         }
         
-        // Load PDF.js styles if not already loaded
-        if (!document.getElementById('pdf-viewer-styles')) {
+        // Load viewer CSS if not already loaded
+        if (!document.getElementById('pdfjs-viewer-styles')) {
           const link = document.createElement('link');
-          link.id = 'pdf-viewer-styles';
+          link.id = 'pdfjs-viewer-styles';
           link.rel = 'stylesheet';
           link.href = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/web/pdf_viewer.css`;
           document.head.appendChild(link);
           
-          // Add additional styles needed for PDF.js viewer
-          const style = document.createElement('style');
-          style.id = 'pdf-viewer-custom-styles';
-          style.textContent = `
-            .pdfViewer .page {
-              margin: 1px auto -8px auto;
-              border: 1px solid #eee;
+          // Add custom styles
+          const customStyles = document.createElement('style');
+          customStyles.id = 'pdf-custom-styles';
+          customStyles.textContent = `
+            .pdf-container {
+              position: absolute;
+              width: 100%;
+              height: 100%;
+              overflow: auto;
+              background-color: #f8f9fa;
             }
-            .pdfViewer.removePageBorders .page {
-              margin: 0 auto 10px auto;
-              border: none;
+            .pdfViewer .page {
+              margin: 15px auto;
+              box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            }
+            .pdfViewer .page.highlighted {
+              box-shadow: 0 0 15px 5px rgba(255, 235, 59, 0.5);
+            }
+            .pdf-loading {
+              position: absolute;
+              top: 0;
+              left: 0;
+              right: 0;
+              bottom: 0;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              background: rgba(255, 255, 255, 0.9);
+              z-index: 10;
+            }
+            .pdf-error {
+              position: absolute;
+              top: 0;
+              left: 0;
+              right: 0;
+              bottom: 0;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              background: rgba(255, 255, 255, 0.9);
+              z-index: 10;
+              padding: 20px;
+              color: #d32f2f;
+              text-align: center;
+            }
+            .pdf-page-indicator {
+              position: absolute;
+              bottom: 8px;
+              right: 8px;
+              background: white;
+              padding: 4px 8px;
+              border-radius: 4px;
+              font-size: 12px;
+              box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+              z-index: 5;
+              color: #333;
             }
           `;
-          document.head.appendChild(style);
+          document.head.appendChild(customStyles);
         }
         
-        // Mark PDF.js as initialized
-        setPdfJsInitialized(true);
+        if (mounted) {
+          setPdfJsLoaded(true);
+        }
       } catch (err) {
-        console.error("Failed to initialize PDF.js:", err);
-        setError(`Failed to initialize PDF.js: ${err instanceof Error ? err.message : String(err)}`);
-        setIsLoading(false);
+        console.error("Failed to load PDF.js:", err);
+        if (mounted) {
+          setError(`Failed to load PDF.js: ${err instanceof Error ? err.message : String(err)}`);
+          setIsLoading(false);
+        }
       }
     };
 
-    initialize();
+    loadPdfJs();
+    
+    return () => {
+      mounted = false;
+    };
   }, [isBrowser]);
 
-  // Load PDF when sasUrl changes and PDF.js is initialized
+  // Load and render PDF when URL changes and PDF.js is loaded
   useEffect(() => {
-    if (!isBrowser || !sasUrl || !pdfJsInitialized || !containerRef.current) return;
+    if (!isBrowser || !sasUrl || !pdfJsLoaded || !viewerContainerRef.current) return;
     
     let mounted = true;
-    let viewer: any = null;
+    let pdfViewerInstance: any = null;
+    let pdfDocumentInstance: PDFDocumentProxy | null = null;
+    let eventBusInstance: any = null;
     
-    const loadPdf = async () => {
+    const loadAndRenderPdf = async () => {
       try {
         setIsLoading(true);
         setError(null);
         
         console.log(`Loading PDF from SAS URL: ${sasUrl.substring(0, 50)}...`);
         
-        // Import PDF.js
+        // Dynamic imports for viewer components
         const pdfjsLib = await import('pdfjs-dist');
         
-        // Get the PDF.js viewer components using a more dynamic approach to avoid TS errors
-        // This avoids the need for type declarations
-        // @ts-ignore - Dynamically access the module without type checking
-        const pdfJsViewer = window.pdfjsViewer || await new Promise((resolve) => {
-          // Load the viewer script dynamically
-          const script = document.createElement('script');
-          script.src = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/web/pdf_viewer.js`;
-          script.onload = () => {
-            // @ts-ignore - Access the global pdfjsViewer object
-            resolve(window.pdfjsViewer);
-          };
-          script.onerror = (e) => {
-            console.error('Failed to load PDF.js viewer:', e);
-            setError('Failed to load PDF.js viewer script');
-          };
-          document.head.appendChild(script);
+        // Import the web viewer components (.mjs file extension is important)
+        const viewerModule = await import('pdfjs-dist/web/pdf_viewer.mjs');
+        
+        if (!mounted || !viewerContainerRef.current) return;
+        
+        // Clear previous viewer
+        viewerContainerRef.current.innerHTML = '';
+        
+        // Create viewer elements
+        const viewerContainer = document.createElement('div');
+        viewerContainer.className = 'pdf-container';
+        
+        const viewerElement = document.createElement('div');
+        viewerElement.className = 'pdfViewer';
+        viewerContainer.appendChild(viewerElement);
+        
+        viewerContainerRef.current.appendChild(viewerContainer);
+        
+        // Create event bus
+        eventBusInstance = new viewerModule.EventBus();
+        
+        // Create link service
+        const pdfLinkService = new viewerModule.PDFLinkService({
+          eventBus: eventBusInstance,
         });
         
-        // Clear container
-        if (containerRef.current) {
-          containerRef.current.innerHTML = '';
-          
-          // Ensure container has position: absolute as required by PDF.js
-          containerRef.current.style.position = 'absolute';
-          containerRef.current.style.top = '0';
-          containerRef.current.style.left = '0';
-          containerRef.current.style.right = '0';
-          containerRef.current.style.bottom = '0';
-        }
+        // Create viewer - using only options supported by PDFViewerOptions type
+        // Use @ts-ignore to bypass TypeScript type checking since we're using dynamic imports
+        // @ts-ignore
+        pdfViewerInstance = new viewerModule.PDFViewer({
+          container: viewerContainer,
+          viewer: viewerElement,
+          eventBus: eventBusInstance,
+          linkService: pdfLinkService,
+          textLayerMode: 2, // Enable text layer
+          // Other options handled by our custom CSS
+          removePageBorders: false,
+        });
         
-        // Create viewer container
-        const viewerContainer = document.createElement('div');
-        viewerContainer.className = 'pdfViewer';
-         
-        if (containerRef.current) {
-          containerRef.current.appendChild(viewerContainer);
-           
-          // Create event bus
-          const eventBus = new pdfJsViewer.EventBus();
-           
-          // Create link service
-          const linkService = new pdfJsViewer.PDFLinkService({
-            eventBus,
-          });
+        pdfLinkService.setViewer(pdfViewerInstance);
+        
+        // Set up event listeners
+        eventBusInstance.on('pagesinit', () => {
+          // Set initial zoom level
+          if (pdfViewerInstance) {
+            pdfViewerInstance.currentScaleValue = zoomLevel;
+          }
+        });
+        
+        eventBusInstance.on('pagechanging', (evt: any) => {
+          if (mounted) {
+            setCurrentPage(evt.pageNumber || 1);
+          }
+        });
+        
+        // Load the document
+        const loadingTask = pdfjsLib.getDocument({
+          url: sasUrl,
+          withCredentials: false,
+          cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
+          cMapPacked: true,
+        });
+        
+        // Progress tracking
+        loadingTask.onProgress = (data: { loaded: number; total: number }) => {
+          if (data.total > 0) {
+            const progress = Math.round((data.loaded / data.total) * 100);
+            console.log(`Loading PDF: ${progress}%`);
+          }
+        };
+        
+        pdfDocumentInstance = await loadingTask.promise;
+        
+        if (!mounted || !pdfViewerInstance) return;
+        
+        // Set the document in the viewer
+        pdfViewerInstance.setDocument(pdfDocumentInstance);
+        pdfLinkService.setDocument(pdfDocumentInstance);
+        
+        setNumPages(pdfDocumentInstance.numPages);
+        setViewer(pdfViewerInstance);
+        
+        console.log(`PDF loaded successfully: ${pdfDocumentInstance.numPages} pages`);
+        
+        // Check if we need to jump to a specific page based on highlightedElementId
+        if (highlightedElementId) {
+          const pageNumber = extractPageNumberFromElementId(highlightedElementId);
+          if (pageNumber !== null) {
+            // extractPageNumberFromElementId returns 0-indexed, but PDF.js uses 1-indexed
+            const oneBasedPageNumber = pageNumber + 1;
+            console.log(`Scrolling to highlighted page: ${pageNumber} (0-indexed) → ${oneBasedPageNumber} (1-indexed)`);
             
-          // Create viewer instance
-          viewer = new pdfJsViewer.PDFViewer({
-            container: containerRef.current,
-            eventBus,
-            linkService,
-            renderer: 'canvas',
-            textLayerMode: 2, // Enable text layer
-            removePageBorders: true, // Cleaner look without borders
-          });
-            
-          viewerRef.current = viewer;
-          linkService.setViewer(viewer);
-            
-          // Configure PDF.js for SAS URL with better caching
-          const loadingTask = pdfjsLib.getDocument({
-            url: sasUrl,
-            withCredentials: false,
-            cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
-            cMapPacked: true,
-          });
-          
-          // Progress tracking
-          loadingTask.onProgress = (data: { loaded: number; total: number }) => {
-            if (data.total > 0) {
-              const progress = Math.round((data.loaded / data.total) * 100);
-              console.log(`Loading PDF: ${progress}%`);
-            }
-          };
-          
-          // Load the document
-          const pdfDocument = await loadingTask.promise;
-          
-          if (!mounted) return;
-          
-          console.log(`PDF loaded successfully: ${pdfDocument.numPages} pages`);
-          setNumPages(pdfDocument.numPages);
-          setPdfDocument(pdfDocument);
-          
-          // Set the document in the viewer
-          viewer.setDocument(pdfDocument);
-          linkService.setDocument(pdfDocument);
-          
-          // Update the page scale (zoom)
-          viewer.currentScaleValue = zoomLevel;
-          
-          // Handle page change events
-          eventBus.on('pagechanging', (evt: any) => {
-            if (mounted) {
-              setCurrentPage(evt.pageNumber);
-            }
-          });
-          
-          // If there's a highlighted element, navigate to it
-          if (highlightedElementId) {
-            const pageNumber = extractPageNumberFromElementId(highlightedElementId);
-            if (pageNumber !== null && pageNumber < pdfDocument.numPages) {
-              const pageIndex = pageNumber; // PDF.js uses 0-based indexing internally
-              viewer.currentPageNumber = pageIndex + 1; // But the viewer uses 1-based indexing
-            }
+            // Wait for pages to render, then scroll
+            setTimeout(() => {
+              if (pdfViewerInstance && mounted) {
+                pdfViewerInstance.currentPageNumber = oneBasedPageNumber;
+                
+                // Highlight the page
+                setTimeout(() => {
+                  if (mounted && pdfViewerInstance) {
+                    const pageDiv = pdfViewerInstance.getPageView(pageNumber)?.div;
+                    if (pageDiv) {
+                      pageDiv.classList.add('highlighted');
+                    }
+                  }
+                }, 100);
+              }
+            }, 100);
           }
           
           setIsLoading(false);
         }
       } catch (err) {
-        if (!mounted) return;
-        
-        console.error("Failed to load PDF:", err);
-        setError(`Failed to load PDF: ${err instanceof Error ? err.message : String(err)}`);
-        setIsLoading(false);
-      }
-    };
-    
-    loadPdf();
-    
-    return () => {
-      mounted = false;
-      if (viewer) {
-        // Clean up viewer resources
-        try {
-          viewer.cleanup();
-        } catch (err) {
-          console.error('Error cleaning up PDF viewer:', err);
+        console.error("Failed to load or render PDF:", err);
+        if (mounted) {
+          setError(`Failed to load or render PDF: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
         }
       }
     };
-  }, [sasUrl, pdfJsInitialized, isBrowser]);
-  
-  // Handle zoom level changes
+    
+    loadAndRenderPdf();
+    
+    return () => {
+      mounted = false;
+      
+      // Clean up
+      if (eventBusInstance) {
+        eventBusInstance.off('pagesinit');
+        eventBusInstance.off('pagechanging');
+      }
+      
+      if (pdfDocumentInstance) {
+        pdfDocumentInstance.destroy();
+      }
+    };
+  }, [sasUrl, pdfJsLoaded, zoomLevel, highlightedElementId, isBrowser]);
+
+  // Update zoom level when it changes
   useEffect(() => {
-    if (!viewerRef.current || !pdfDocument) return;
-    
-    // Update the page scale (zoom)
-    viewerRef.current.currentScaleValue = zoomLevel;
-    
-  }, [zoomLevel, pdfDocument]);
-  
-  // Navigate to highlighted element
-  useEffect(() => {
-    if (!isBrowser || !pdfDocument || !viewerRef.current || !highlightedElementId) return;
-    
-    const pageNumber = extractPageNumberFromElementId(highlightedElementId);
-    if (pageNumber === null) return;
-    
-    // Convert to 1-based page numbering for the viewer
-    const oneBasedPageNumber = pageNumber + 1;
-    
-    if (oneBasedPageNumber < 1 || oneBasedPageNumber > numPages) {
-      console.warn(`Invalid page number: ${oneBasedPageNumber}`);
-      return;
+    if (viewer && typeof zoomLevel === 'number') {
+      viewer.currentScaleValue = zoomLevel;
     }
-    
-    console.log(`Navigating to page ${oneBasedPageNumber}`);
-    viewerRef.current.currentPageNumber = oneBasedPageNumber;
-    
-  }, [highlightedElementId, pdfDocument, numPages, isBrowser]);
+  }, [viewer, zoomLevel]);
   
   // Render for SSR
   if (!isBrowser) {
@@ -305,38 +364,29 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
   }
 
   return (
-    <div className="relative w-full h-full">
+    <div className={`relative ${className}`} style={style}>
       <div 
-        ref={containerRef}
-        className={`pdf-container ${className}`}
-        style={{
-          ...style,
-          position: 'absolute', // Required by PDF.js
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          overflow: 'auto'
-        }}
+        ref={viewerContainerRef}
+        className="w-full h-full"
       />
       
       {/* Loading overlay */}
       {isLoading && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white bg-opacity-75 z-10">
+        <div className="pdf-loading">
           <div className="text-gray-600 font-medium text-lg mb-2">Loading PDF...</div>
           <div className="text-gray-400 text-sm">
-            {!pdfDocument ? 'Preparing document...' : 'Rendering pages...'}
+            {numPages === 0 ? 'Preparing document...' : 'Rendering pages...'}
           </div>
         </div>
       )}
       
       {/* Error display */}
       {error && !isLoading && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white bg-opacity-90 p-4 z-10">
+        <div className="pdf-error">
           <div className="text-red-600 font-bold text-lg mb-2">Failed to load PDF</div>
           <div className="text-gray-700 text-center max-w-md">{error}</div>
-          {!pdfJsInitialized && (
-            <div className="text-amber-600 text-sm mt-2">PDF.js worker could not be loaded. Please check your internet connection.</div>
+          {!pdfJsLoaded && (
+            <div className="text-amber-600 text-sm mt-2">PDF.js could not be loaded. Please check your internet connection.</div>
           )}
           <div className="text-gray-500 text-sm mt-4 max-w-md overflow-hidden text-ellipsis">
             URL: {sasUrl ? sasUrl.substring(0, 50) + '...' : 'No URL provided'}
@@ -351,8 +401,8 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
       )}
       
       {/* Page indicator */}
-      {(numPages > 0 && !error) && (
-        <div className="absolute bottom-2 right-2 bg-white bg-opacity-85 px-2 py-1 rounded text-xs font-medium text-gray-700 z-20 shadow-sm">
+      {(numPages > 0 && !error && !isLoading) && (
+        <div className="pdf-page-indicator">
           Page {currentPage} of {numPages}
         </div>
       )}
@@ -360,4 +410,4 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
   );
 };
 
-export default PDFViewer; 
+export default PDFViewer;
