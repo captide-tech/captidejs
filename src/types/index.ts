@@ -5,7 +5,20 @@
 /**
  * Defines the possible types of source documents
  */
-export type SourceType = '10-k' | '10-q' | '8-k' | 'transcript' | 'def 14a' | 'defm14a' | 'def 14c' | 'defm14c' | '20-f' | '40-f' | '6-k' | 's-1' | 'ir';
+export type SourceType = 
+  | '10-k' | '10-K' 
+  | '10-q' | '10-Q' 
+  | '8-k' | '8-K' 
+  | 'transcript' | 'TRANSCRIPT'
+  | 'def 14a' | 'DEF 14A'
+  | 'defm14a' | 'DEFM14A'
+  | 'def 14c' | 'DEF 14C'
+  | 'defm14c' | 'DEFM14C'
+  | '20-f' | '20-F'
+  | '40-f' | '40-F'
+  | '6-k' | '6-K'
+  | 's-1' | 'S-1'
+  | 'ir' | 'IR';
 
 /**
  * Document file types for binary documents
