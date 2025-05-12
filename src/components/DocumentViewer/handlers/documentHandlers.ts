@@ -1,5 +1,5 @@
-import { isProxyStatement } from '../utils/documentProcessing';
 import { findBestScrollTarget } from '../utils/highlighting';
+import { extractPageNumberFromElementId, isProxyStatement } from '../utils/pageUtils';
 
 /**
  * Handle page-based document loading (8-K and proxy statements)
@@ -18,12 +18,11 @@ export const handlePageBasedDocumentLoad = (
 
   // For 8-K and DEF 14A documents, we need to highlight the correct page
   if ((document.sourceType === '8-K' || isProxyStatement(document.sourceType)) && highlightedElementId) {
-    // Extract page number from the last four digits of the highlightedElementId
-    // Format: #f2340000 where 0000 is page 1, 0001 is page 2, etc.
-    const cleanId = highlightedElementId.replace('#', '');
-    const pageNumberStr = cleanId.slice(-4);
-    // Convert the string to a number and make it zero-based (0000 -> page 0)
-    const pageNumber = parseInt(pageNumberStr, 10);
+    // Extract page number from elementId
+    const pageNumber = extractPageNumberFromElementId(highlightedElementId);
+    
+    // If page number extraction failed, exit early
+    if (pageNumber === null) return;
     
     // For proxy statement documents, use the injected highlightCaptidePage function
     if (isProxyStatement(document.sourceType)) {

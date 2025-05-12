@@ -3,17 +3,26 @@ import {
   DocumentViewerState, 
   DocumentViewerContextValue, 
   SourceDocument,
+  HtmlSourceDocument,
+  BinarySourceDocument,
+  InternalDocument,
   FetchDocumentFn,
   SourceDocumentBase,
   TabInfo,
-  SourceType
+  SourceType,
+  FileType
 } from '../types';
 
 // Define valid source types array based on the SourceType type
 const VALID_SOURCE_TYPES: SourceType[] = [
-  '10-K', '10-Q', '8-K', 'transcript', 'DEF 14A', 'DEFM14A', 
-  'DEF 14C', 'DEFM14C', '20-F', '40-F', '6-K', 'S-1'
+  '10-k', '10-q', '8-k', 'transcript', 'def 14a', 'defm14a', 
+  'def 14c', 'defm14c', '20-f', '40-f', '6-k', 's-1', 'ir'
 ];
+
+// DIAGNOSTIC CODE: This will log as soon as this module is imported
+console.log('[DIAGNOSTIC] DocumentViewerContext module loaded - version 0.1.20', {
+  validSourceTypes: VALID_SOURCE_TYPES
+});
 
 // Initial state for the context
 const initialState: DocumentViewerState = {
@@ -49,18 +58,135 @@ function extractSourceTypeFromUrl(sourceLink: string): SourceType {
     const url = new URL(sourceLink);
     const sourceTypeParam = url.searchParams.get('sourceType');
     
-    // Validate that sourceTypeParam is a valid SourceType
-    if (sourceTypeParam && VALID_SOURCE_TYPES.includes(sourceTypeParam as SourceType)) {
-      return sourceTypeParam as SourceType;
+    if (!sourceTypeParam) {
+      console.warn(`Missing sourceType parameter in sourceLink: ${sourceLink}, defaulting to "ir"`);
+      return 'ir'; // Default to ir if not specified
     }
     
-    // Throw an error if sourceType is missing or invalid
-    throw new Error(`Invalid sourceType parameter in sourceLink: ${sourceTypeParam || 'missing'}`);
+    // Make comparison case-insensitive by converting to lowercase
+    const normalizedSourceType = sourceTypeParam.toLowerCase();
+    
+    // Validate that sourceTypeParam is a valid SourceType
+    if (VALID_SOURCE_TYPES.includes(normalizedSourceType as SourceType)) {
+      return normalizedSourceType as SourceType;
+    }
+    
+    // If not valid, log a warning and return a default type
+    console.warn(`Invalid sourceType parameter in sourceLink: ${sourceTypeParam}, defaulting to "ir"`);
+    return 'ir';
   } catch (e) {
     // Add more context to the error
     const error = e instanceof Error ? e : new Error(String(e));
-    throw new Error(`Failed to parse sourceLink URL for determining sourceType: ${sourceLink}. ${error.message}`);
+    console.error(`Failed to parse sourceLink URL: ${sourceLink}. ${error.message}`);
+    return 'ir'; // Default to ir for error cases
   }
+}
+
+/**
+ * Extract file type from a sourceLink URL
+ * 
+ * @param sourceLink - The source link containing the fileType parameter
+ * @returns The file type value or null if not specified
+ */
+function extractFileTypeFromUrl(sourceLink: string): FileType {
+  try {
+    const url = new URL(sourceLink);
+    const fileTypeParam = url.searchParams.get('fileType');
+    
+    // Check if fileType is a valid type
+    if (fileTypeParam === 'pdf' || fileTypeParam === 'xlsx') {
+      return fileTypeParam;
+    }
+    
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Convert a SourceDocument (either HTML or Binary) to an InternalDocument
+ * This function handles documents with SAS URLs
+ */
+function convertToInternalDocument(document: SourceDocument, highlightedElementId: string | null = null): InternalDocument {
+  console.log('[DocumentViewerContext] Converting document to internal format:', document);
+  
+  // Safety check for missing or malformed document
+  if (!document || typeof document !== 'object') {
+    console.error('[DocumentViewerContext] Invalid document provided:', document);
+    throw new Error('Invalid document provided to convertToInternalDocument');
+  }
+  
+  // Detect if this is an object with a sasUrl property but missing other required properties
+  // Add safeguards for malformed document objects
+  if (!document.sourceType) {
+    console.warn('[DocumentViewerContext] Document missing sourceType - using default "ir"');
+    (document as any).sourceType = 'ir';
+  }
+  
+  if (!document.sourceLink) {
+    console.warn('[DocumentViewerContext] Document missing sourceLink');
+    (document as any).sourceLink = 'unknown';
+  }
+  
+  // Normalize sourceType to lowercase to handle case-insensitive matching
+  // This ensures values like "IR" will be converted to "ir" to match our type definition
+  const normalizedSourceType = ((document.sourceType || '') + '').toLowerCase() as SourceType;
+  
+  console.log('[DocumentViewerContext] Normalized sourceType:', { 
+    original: document.sourceType, 
+    normalized: normalizedSourceType 
+  });
+  
+  const normalizedDoc = {
+    ...document,
+    sourceType: normalizedSourceType
+  };
+  
+  // Special case for documents with sasUrl (binary documents)
+  if ((normalizedDoc as any).sasUrl) {
+    console.log('[DocumentViewerContext] Processing document with SAS URL:', (normalizedDoc as any).sasUrl.substring(0, 50) + '...');
+    
+    // Ensure the SAS URL properly includes the signature and all parameters
+    const sasUrl = (normalizedDoc as any).sasUrl;
+    const hasValidSasParams = sasUrl && 
+                             sasUrl.includes('sig=') && 
+                             (sasUrl.includes('se=') || sasUrl.includes('sp='));
+    
+    if (!hasValidSasParams) {
+      console.warn('[DocumentViewerContext] SAS URL appears to be missing required parameters');
+    }
+    
+    const internalDoc = {
+      sourceLink: normalizedDoc.sourceLink,
+      sourceType: normalizedDoc.sourceType, 
+      date: (normalizedDoc as any).date || '',
+      htmlContent: '', // Empty for binary documents
+      ticker: (normalizedDoc as any).ticker || '',
+      fiscalPeriod: (normalizedDoc as any).fiscalPeriod || '',
+      companyName: (normalizedDoc as any).companyName || '',
+      highlightedElementId: highlightedElementId,
+      fileType: (normalizedDoc as any).fileType as FileType || 
+               (((normalizedDoc as any).fileName || '').toLowerCase().endsWith('.pdf') ? 'pdf' : 
+               (((normalizedDoc as any).fileName || '').toLowerCase().endsWith('.xlsx') ? 'xlsx' : 'pdf')), 
+      // Pass through additional properties
+      contentType: (normalizedDoc as any).contentType || 
+                  (((normalizedDoc as any).fileName || '').toLowerCase().endsWith('.pdf') ? 'application/pdf' : 
+                  (((normalizedDoc as any).fileName || '').toLowerCase().endsWith('.xlsx') ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/octet-stream')),
+      fileName: (normalizedDoc as any).fileName,
+      sasUrl: (normalizedDoc as any).sasUrl
+    };
+    
+    console.log('[DocumentViewerContext] Created internal document from SAS URL:', internalDoc);
+    return internalDoc;
+  }
+  
+  // For HTML documents, just add the highlightedElementId
+  console.log('[DocumentViewerContext] Processing HTML document');
+  return {
+    ...normalizedDoc as HtmlSourceDocument,
+    highlightedElementId: highlightedElementId
+  };
 }
 
 /**
@@ -105,7 +231,7 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
   /**
    * Sets the document
    */
-  const setDocument = useCallback((document: SourceDocument | null) => {
+  const setDocument = useCallback((document: InternalDocument | null) => {
     // Update document state in a single atomic update
     updateDocumentViewer({
       document,
@@ -180,7 +306,9 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
       );
     }
 
-    // Ensure we have a fetch function - MODIFIED to use providedFetchFn as fallback
+    console.log('[DocumentViewerContext] Loading document:', { sourceLink, elementId, version: '0.1.20' });
+
+    // Ensure we have a fetch function
     const fetchFn = fetchDocumentFnRef.current || providedFetchFn;
     if (!fetchFn) {
       throw new Error(
@@ -218,12 +346,24 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
     const existingTabIndex = state.tabs.findIndex(tab => tab.sourceLink === sourceLink);
     let updatedTabs = [...state.tabs];
     
+    // Extract source type from URL for creating new tabs
+    let sourceType: SourceType;
+    try {
+      sourceType = extractSourceTypeFromUrl(sourceLink);
+    } catch (error) {
+      console.error('Failed to extract source type:', error);
+      sourceType = sourceLink.includes('transcript') ? 'transcript' : '10-k';
+    }
+    
+    // Extract file type for 'ir' documents
+    let fileType: FileType = null;
+    if (sourceType === 'ir') {
+      fileType = extractFileTypeFromUrl(sourceLink);
+    }
+    
     if (existingTabIndex === -1) {
       // If no tab exists, create a new one
       try {
-        // Extract the sourceType from the URL
-        const sourceType = extractSourceTypeFromUrl(sourceLink);
-        
         // Create a new tab with the extracted source type
         const newTab: TabInfo = {
           sourceLink,
@@ -239,7 +379,7 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
         console.error('Failed to create tab:', error);
         
         // Create a fallback tab with best guess for source type
-        const sourceTypeGuess: SourceType = sourceLink.includes('transcript') ? 'transcript' : '10-K';
+        const sourceTypeGuess: SourceType = sourceLink.includes('transcript') ? 'transcript' : '10-k';
         
         const fallbackTab: TabInfo = {
           sourceLink,
@@ -277,23 +417,21 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
 
     try {
       // Fetch the document using the consumer-provided function
-      const document = await fetchFn(sourceLink);
+      const response = await fetchFn(sourceLink);
+      console.log('[DocumentViewerContext] Received API response:', response);
       
-      // Ensure sourceLink is set on the document
-      const documentWithSourceLink: SourceDocument = {
-        ...document,
-        sourceLink,
-        highlightedElementId: elementId || null
-      };
+      // Convert the source document to an internal document
+      const internalDocument = convertToInternalDocument(response, elementId || null);
+      console.log('[DocumentViewerContext] Converted to internal document:', internalDocument);
       
       // Update the tab info with the loaded document data
       const updatedTabsAfterLoad = updatedTabs.map(tab => {
         if (tab.sourceLink === sourceLink) {
           return {
             ...tab,
-            sourceType: documentWithSourceLink.sourceType,
-            ticker: documentWithSourceLink.ticker,
-            fiscalPeriod: documentWithSourceLink.fiscalPeriod,
+            sourceType: internalDocument.sourceType,
+            ticker: internalDocument.ticker,
+            fiscalPeriod: internalDocument.fiscalPeriod,
             isLoading: false
           };
         }
@@ -302,8 +440,9 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
       
       // CRITICAL: Update everything in a single state update to avoid race conditions
       // This ensures the document and tabs are updated atomically
+      console.log('[DocumentViewerContext] Updating document viewer state with new document');
       updateDocumentViewer({ 
-        document: documentWithSourceLink,
+        document: internalDocument,
         tabs: updatedTabsAfterLoad, 
         isLoading: false,
         highlightedElementId: elementId || null 
@@ -311,7 +450,7 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
 
       // No need to call highlightElement separately, as we've already set the highlightedElementId
     } catch (error) {
-      console.error('Failed to load document:', error);
+      console.error('[DocumentViewerContext] Failed to load document:', error);
       
       // Update the tab to show it's no longer loading
       const updatedTabsAfterError = updatedTabs.map(tab => {
@@ -330,7 +469,7 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
       
       throw error;
     }
-  }, [state.tabs, state.isOpen, updateDocumentViewer, openViewer]);
+  }, [state.tabs, state.isOpen, state.document, updateDocumentViewer, openViewer, setDocument]);
 
   /**
    * Add a new tab or switch to existing tab
@@ -347,21 +486,28 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
     // Check if the tab already exists
     const existingTabIndex = currentTabs.findIndex(tab => tab.sourceLink === sourceLink);
     
+    // Extract source type from URL for new tabs
+    let sourceType: SourceType;
+    try {
+      sourceType = extractSourceTypeFromUrl(sourceLink);
+    } catch (error) {
+      console.error('Failed to extract source type:', error);
+      sourceType = sourceLink.includes('transcript') ? 'transcript' : '10-k';
+    }
+    
+    // Extract file type for 'ir' documents
+    let fileType: FileType = null;
+    if (sourceType === 'ir') {
+      fileType = extractFileTypeFromUrl(sourceLink);
+    }
+    
     if (existingTabIndex !== -1) {
-      // If the tab exists, DON'T move it to the front - just select it
-      // We're removing this behavior that moved tabs:
-      // const existingTab = currentTabs[existingTabIndex];
-      // currentTabs.splice(existingTabIndex, 1);
-      // currentTabs.unshift(existingTab);
-      
-      // We keep tabs in their original positions
-      
       // If there's a document associated with this tab, load it
       if (state.document && state.document.sourceLink === sourceLink) {
         return; // Already showing this document
       }
       
-      // Otherwise, load the document (using function reference rather than direct call)
+      // Otherwise, load the document
       updateDocumentViewer({ isLoading: true });
       const fetchFn = fetchDocumentFnRef.current || providedFetchFn;
       if (!fetchFn) {
@@ -370,25 +516,21 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
       }
       
       fetchFn(sourceLink)
-        .then(document => {
-          // Ensure sourceLink is set on the document
-          const documentWithSourceLink: SourceDocument = {
-            ...document,
-            sourceLink,
-            highlightedElementId: null
-          };
+        .then(response => {
+          // Convert the source document to an internal document
+          const internalDocument = convertToInternalDocument(response);
           
           // IMPORTANT: Set document first, then update tabs to ensure correct tab selection
-          setDocument(documentWithSourceLink);
+          setDocument(internalDocument);
           
           // Update the tab info with the loaded document data
           const updatedTabs = currentTabs.map(tab => {
             if (tab.sourceLink === sourceLink) {
               return {
                 ...tab,
-                sourceType: documentWithSourceLink.sourceType,
-                ticker: documentWithSourceLink.ticker,
-                fiscalPeriod: documentWithSourceLink.fiscalPeriod,
+                sourceType: internalDocument.sourceType,
+                ticker: internalDocument.ticker,
+                fiscalPeriod: internalDocument.fiscalPeriod,
                 isLoading: false
               };
             }
@@ -407,9 +549,6 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
     
     // If the tab doesn't exist, create a new one AND place it at the front
     try {
-      // Extract the sourceType from the URL
-      const sourceType = extractSourceTypeFromUrl(sourceLink);
-      
       // Create a new tab with the extracted source type
       const newTab: TabInfo = {
         sourceLink,
@@ -425,7 +564,7 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
       // Update the state
       updateDocumentViewer({ tabs: currentTabs, isLoading: true });
       
-      // Load the document (using function reference rather than direct call)
+      // Load the document
       const fetchFn = fetchDocumentFnRef.current || providedFetchFn;
       if (!fetchFn) {
         updateDocumentViewer({ isLoading: false });
@@ -433,25 +572,21 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
       }
       
       fetchFn(sourceLink)
-        .then(document => {
-          // Ensure sourceLink is set on the document
-          const documentWithSourceLink: SourceDocument = {
-            ...document,
-            sourceLink,
-            highlightedElementId: null
-          };
+        .then(response => {
+          // Convert the source document to an internal document
+          const internalDocument = convertToInternalDocument(response);
           
           // IMPORTANT: Set document first to ensure correct tab selection
-          setDocument(documentWithSourceLink);
+          setDocument(internalDocument);
           
           // Update the tab info with the loaded document data
           const updatedTabs = currentTabs.map(tab => {
             if (tab.sourceLink === sourceLink) {
               return {
                 ...tab,
-                sourceType: documentWithSourceLink.sourceType,
-                ticker: documentWithSourceLink.ticker,
-                fiscalPeriod: documentWithSourceLink.fiscalPeriod,
+                sourceType: internalDocument.sourceType,
+                ticker: internalDocument.ticker,
+                fiscalPeriod: internalDocument.fiscalPeriod,
                 isLoading: false
               };
             }
@@ -479,12 +614,12 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
     } catch (error) {
       console.error('Failed to create tab:', error);
       
-      // Show error to the user (you might want to add a toast notification or error state in the UI)
+      // Show error to the user
       const errorMessage = error instanceof Error ? error.message : String(error);
       
       // Even with an error, we should add the tab but mark it as having an error
       // This provides better UX by showing the user there was a problem with this tab
-      const sourceTypeGuess: SourceType = sourceLink.includes('transcript') ? 'transcript' : '10-K';
+      const sourceTypeGuess: SourceType = sourceLink.includes('transcript') ? 'transcript' : '10-k';
       
       const errorTab: TabInfo = {
         sourceLink,
@@ -541,17 +676,13 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
         }
         
         fetchFn(nextTab.sourceLink)
-          .then(document => {
-            // Ensure sourceLink is set on the document
-            const documentWithSourceLink: SourceDocument = {
-              ...document,
-              sourceLink: nextTab.sourceLink,
-              highlightedElementId: null
-            };
+          .then(response => {
+            // Convert the source document to an internal document
+            const internalDocument = convertToInternalDocument(response);
             
             // Update everything in a single state update
             updateDocumentViewer({
-              document: documentWithSourceLink,
+              document: internalDocument,
               tabs: newTabs,
               isLoading: false,
               highlightedElementId: null

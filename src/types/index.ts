@@ -5,7 +5,12 @@
 /**
  * Defines the possible types of source documents
  */
-export type SourceType = '10-K' | '10-Q' | '8-K' | 'transcript' | 'DEF 14A' | 'DEFM14A' | 'DEF 14C' | 'DEFM14C' | '20-F' | '40-F' | '6-K' | 'S-1';
+export type SourceType = '10-k' | '10-q' | '8-k' | 'transcript' | 'def 14a' | 'defm14a' | 'def 14c' | 'defm14c' | '20-f' | '40-f' | '6-k' | 's-1' | 'ir';
+
+/**
+ * Document file types for binary documents
+ */
+export type FileType = 'pdf' | 'xlsx' | null;
 
 // Extend the Window interface to include the highlightCaptidePage function
 declare global {
@@ -39,8 +44,9 @@ export interface TabInfo extends SourceDocumentBase {
 
 /**
  * Complete source document with HTML content and additional metadata
+ * Used for standard HTML-based documents
  */
-export interface SourceDocument extends SourceDocumentBase {
+export interface HtmlSourceDocument extends SourceDocumentBase {
   /** HTML content of the document */
   htmlContent: string;
   
@@ -61,11 +67,64 @@ export interface SourceDocument extends SourceDocumentBase {
 }
 
 /**
+ * Binary document response for PDF or XLSX files
+ * Used for non-HTML documents like PDF or Excel files
+ */
+export interface BinarySourceDocument extends SourceDocumentBase {
+  /** Document date */
+  date: string;
+  
+  /** Company name */
+  companyName: string;
+  
+  /** Override ticker to make it required and non-null */
+  ticker: string;
+  
+  /** Override fiscalPeriod to make it required and non-null */
+  fiscalPeriod: string;
+  
+  /** Type of binary file */
+  fileType: 'pdf' | 'xlsx';
+  
+  /** SAS URL for the document (Azure storage shared access signature) */
+  sasUrl: string;
+  
+  /** Content type of the document */
+  contentType?: string;
+  
+  /** File name of the document */
+  fileName?: string;
+}
+
+/**
+ * Union type for all source document types
+ */
+export type SourceDocument = HtmlSourceDocument | BinarySourceDocument;
+
+/**
+ * Internal document type used by the viewer
+ * This shouldn't be directly exposed to users
+ */
+export interface InternalDocument extends HtmlSourceDocument {
+  /** File type for binary documents */
+  fileType?: FileType;
+  
+  /** Original SAS URL if provided */
+  sasUrl?: string;
+  
+  /** Content type of the document */
+  contentType?: string;
+  
+  /** File name of the document */
+  fileName?: string;
+}
+
+/**
  * Context state for the DocumentViewer
  */
 export interface DocumentViewerState {
   /** The document being displayed */
-  document: SourceDocument | null;
+  document: InternalDocument | null;
   
   /** Whether document is currently loading */
   isLoading: boolean;
@@ -85,6 +144,7 @@ export interface DocumentViewerState {
 
 /**
  * Function to fetch document content from the API
+ * Can return either an HTML document or a binary document
  */
 export type FetchDocumentFn = (sourceLink: string) => Promise<SourceDocument>;
 
@@ -96,7 +156,7 @@ export interface DocumentViewerContextValue extends DocumentViewerState {
   updateDocumentViewer: (updates: Partial<DocumentViewerState>) => void;
   
   /** Sets document, source type, and handles loading state */
-  setDocument: (document: SourceDocument | null) => void;
+  setDocument: (document: InternalDocument | null) => void;
   
   /** Highlights an element in the current document */
   highlightElement: (elementId: string) => void;

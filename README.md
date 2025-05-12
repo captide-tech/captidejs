@@ -1,75 +1,158 @@
-# Captide.js
+# Captide - Financial Document Viewer
 
-A complete solution for SEC document question-answering and source linking, featuring a React component for viewing and highlighting content in source documents like SEC filings, 8-K documents, and earnings call transcripts.
+Get hundreds of thousands of financial documents into your AI app 🚀
 
-## 📚 Documentation
+## Features
 
-For comprehensive documentation, including installation instructions, API references, and advanced usage examples, please visit our official documentation:
+- Render SEC filings (10-K, 10-Q, 8-K, 20-F, 40-F, 6-K)
+- Support for earnings call transcripts
+- Element-based highlighting
+- Support for PDF and Excel documents
+- Shareable links to specific sections
+- Zoom controls
 
-[https://docs.captide.co](https://docs.captide.co)
+## Installation
 
-## 🌟 Example Implementation
+```bash
+npm install captide
+# or
+yarn add captide
+```
 
-For a live example of Captide in action, visit [https://app.captide.co](https://app.captide.co) where this library is used for source linking.
+## Basic Usage
 
 ```jsx
-import React from 'react';
-import { DocumentViewer, DocumentViewerProvider, useDocumentViewer } from 'captide';
+import { DocumentViewer, DocumentViewerProvider } from 'captide';
 
-// Function to fetch document content from your backend that calls our API
-const fetchDocument = async (sourceLink) => {
-  const response = await fetch('/your-backend/document', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ source_link: sourceLink })
-  });
-  
-  return response.json();
-};
-
-// Example component using the DocumentViewer
 function App() {
   return (
-    <DocumentViewerProvider fetchDocumentFn={fetchDocument}>
-      <DocumentViewerDemo />
+    <DocumentViewerProvider>
+      <div style={{ height: '800px' }}>
+        <DocumentViewer 
+          enableShareableLinks={true}
+          shareableLinkBaseUrl="https://yourdomain.com"
+        />
+      </div>
     </DocumentViewerProvider>
   );
 }
-
-function DocumentViewerDemo() {
-  const { loadDocument } = useDocumentViewer();
-  
-  // IMPORTANT: sourceLink and elementId come from your API response
-  // - sourceLink: The 'source_link' field from the API response
-  // - elementId: The 'id' field from either:
-  //   * The 'answer' field when using /rag/agent_query endpoint
-  //   * The 'metadata' field when using /rag/chunks endpoint
-  const handleSourceLinkClick = async (sourceLink, elementId) => {
-    // Load document and highlight specific element
-    await loadDocument(sourceLink, elementId);
-  };
-  
-  return (
-    <div>
-      <button 
-        onClick={() => handleSourceLinkClick(
-          'https://rest-api.captide.co/api/v1/document?source_type=10-Q&document_id=69443120-e3a3-4ebb-91b1-a55ff2afe141',
-          '#ab12ef34'
-        )}
-      >
-        View Source
-      </button>
-      
-      <div style={{ height: '600px', width: '100%', border: '1px solid #ccc' }}>
-        <DocumentViewer />
-      </div>
-    </div>
-  );
-}
-
-export default App;
 ```
 
-## 📝 License
+## Server-Side Rendering (SSR) Compatibility
+
+Captide is designed to work seamlessly in both client and server environments.
+
+### Next.js App Router Usage (Recommended)
+
+When using Captide with Next.js App Router, add the `'use client'` directive to mark the component as client-side only:
+
+```jsx
+'use client';
+
+import { DocumentViewer, DocumentViewerProvider } from 'captide';
+
+export default function DocumentViewerPage() {
+  return (
+    <DocumentViewerProvider>
+      <div style={{ height: '100vh' }}>
+        <DocumentViewer />
+      </div>
+    </DocumentViewerProvider>
+  );
+}
+```
+
+### Next.js Pages Router Usage
+
+When using Captide with Next.js Pages Router, the component will work, but to avoid SSR-related issues with browser-specific APIs like `DOMMatrix`, you may need to use dynamic imports:
+
+```jsx
+// pages/document-viewer.js
+import dynamic from 'next/dynamic';
+
+// Import with no SSR
+const DocumentViewer = dynamic(
+  () => import('captide').then(mod => mod.DocumentViewer),
+  { ssr: false }
+);
+
+const DocumentViewerProvider = dynamic(
+  () => import('captide').then(mod => mod.DocumentViewerProvider),
+  { ssr: false }
+);
+
+export default function DocumentViewerPage() {
+  return (
+    <DocumentViewerProvider>
+      <div style={{ height: '100vh' }}>
+        <DocumentViewer />
+      </div>
+    </DocumentViewerProvider>
+  );
+}
+```
+
+## Document Types
+
+Captide supports various document types:
+
+1. **HTML Documents** - SEC filings, transcripts, and other HTML-based documents
+2. **PDF Documents** - Direct PDF viewing with page navigation
+3. **Spreadsheet Files** - Excel files with download/open options
+
+The `DocumentViewer` component automatically selects the appropriate viewer based on the document properties.
+
+## API Reference
+
+### DocumentViewer
+
+```jsx
+<DocumentViewer
+  className="w-full h-full"
+  showZoomControls={true}
+  enableShareableLinks={true}
+  shareableLinkBaseUrl="https://yourdomain.com"
+  shareableLinkButtonColor="#2563eb"
+  viewerRoutePath="document-viewer"
+/>
+```
+
+### DocumentViewerProvider
+
+```jsx
+<DocumentViewerProvider
+  initialState={{
+    document: myDocument,
+    highlightedElementId: 'section-1',
+    zoomLevel: 1.0
+  }}
+>
+  {children}
+</DocumentViewerProvider>
+```
+
+### useDocumentViewer Hook
+
+```jsx
+import { useDocumentViewer } from 'captide';
+
+function MyComponent() {
+  const { 
+    document,
+    highlightedElementId,
+    setDocument,
+    setHighlightedElementId,
+    zoomIn,
+    zoomOut,
+    resetZoom
+  } = useDocumentViewer();
+  
+  return (
+    // Your component implementation
+  );
+}
+```
+
+## License
 
 MIT 

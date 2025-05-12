@@ -2,69 +2,24 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useDocumentViewer } from '../../contexts/DocumentViewerContext';
 import ShareableLinkTooltip from '../ShareableLinkTooltip';
 import { DocumentViewerProps, TooltipPosition } from './types';
-import { isInternationalFiling, processHtmlForPageBreaks, isProxyStatement } from './utils/documentProcessing';
-import { highlightElementsInRange } from './utils/highlighting';
-import { copyLinkToClipboard, setupShareableLinkButtons } from './utils/shareableLinks';
-import { getBaseHtmlTemplate, generateGeneralStyles, generateInternationalFilingStyles, generatePageBasedDocumentStyles } from './styles';
-import { 
-  handleInternationalFilingHighlight, 
-  handlePageBasedDocumentLoad 
-} from './handlers/documentHandlers';
+import { isInternationalFiling, isProxyStatement } from './utils/documentProcessing';
+import dynamicImport from './dynamicImport';
 
-// Define the missing handler function locally to fix import issue
-const handleStandardDocumentHighlight = (
-  iframe: HTMLIFrameElement,
-  document: any,
-  highlightedElementId: string | null,
-  isNewDocument: boolean,
-  highlightElementsInRangeFn: (range: Range, commonAncestor: Element, iframeDocument: Document) => void
-): void => {
-  const iframeDocument = iframe.contentDocument;
-  if (!iframeDocument) return;
+// Import the HTML viewer normally - it can be SSR'd
+import HTMLViewer from './HTMLViewer';
 
-  // Remove existing highlights
-  const existingHighlights = iframeDocument.querySelectorAll('.highlighted');
-  existingHighlights.forEach(el => {
-    el.classList.remove('highlighted');
-  });
-
-  if (highlightedElementId) {
-    const cleanId = highlightedElementId.replace('#', '');
-    
-    // Delay based on whether this is a new document or not
-    const delay = isNewDocument ? 500 : 0;
-
-    setTimeout(() => {
-      // Find all elements with matching ID
-      const elementsToHighlight = iframeDocument.querySelectorAll(
-        `[unique_id*="${cleanId}"], [unique-id*="${cleanId}"], [unique-id*="#${cleanId}"], [id*="[#${cleanId}]"]`
-      );
-
-      if (elementsToHighlight.length > 0) {
-        // Highlight all directly matching elements
-        elementsToHighlight.forEach(element => {
-          element.classList.add('highlighted');
-        });
-        
-        // Find a good element to scroll to
-        const bestElement = elementsToHighlight[0];
-        if (bestElement) {
-          // Simple version - just scroll to the first highlighted element
-          bestElement.scrollIntoView({
-            behavior: isNewDocument ? 'auto' : 'smooth',
-            block: 'center'
-          });
-        }
-      }
-    }, delay);
-  }
-};
+// Dynamically import browser-only components with no SSR
+const PDFViewer = dynamicImport(() => import('./PDFViewer'), { ssr: false });
+const SpreadsheetViewer = dynamicImport(() => import('./SpreadsheetViewer'), { ssr: false });
 
 /**
  * DocumentViewer Component
  * 
- * Renders an iframe containing document content (SEC filings, 8-K documents, or earnings call transcripts)
- * and handles highlighting of specific elements.
+ * This is the main entry point for the document viewer.
+ * It handles loading the appropriate viewer based on the document type:
+ * - HTML Viewer for HTML content (SEC filings, 10-K, 10-Q, 8-K, etc.)
+ * - PDF Viewer for PDF documents
+ * - Spreadsheet Viewer for Excel/CSV files
  * 
  * Features:
  * - Support for all document types (10-K/10-Q filings, 8-K documents, and earnings call transcripts)
@@ -73,6 +28,7 @@ const handleStandardDocumentHighlight = (
  * - Efficient document reloading on content change
  * - Zoom controls for adjusting document scale
  * - Hover-to-share functionality for highlighted elements
+ * - Support for PDF and Excel documents from IR sites
  */
 const DocumentViewer: React.FC<DocumentViewerProps> = ({ 
   className = 'w-full h-full',
@@ -96,328 +52,38 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     resetZoom
   } = useDocumentViewer();
   
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const previousDocumentRef = useRef<string | null>(null);
-  const previousSourceTypeRef = useRef<string | null>(null);
-  const previousZoomLevelRef = useRef<number>(1.0);
   const containerRef = useRef<HTMLDivElement>(null);
-  
-  // State for the shareable link tooltip
-  const [tooltipVisible, setTooltipVisible] = useState(false);
-  const [tooltipPosition, setTooltipPosition] = useState<TooltipPosition>({ x: 0, y: 0 });
-  const [tooltipElementId, setTooltipElementId] = useState<string | null>(null);
 
-  // Apply zoom level to the iframe content without re-rendering or reloading the document
-  useEffect(() => {
-    const iframe = iframeRef.current;
-    if (!iframe || !iframe.contentDocument || !iframe.contentWindow) return;
-    
-    // Only update if the zoom level has changed
-    if (previousZoomLevelRef.current !== zoomLevel) {
-      const iframeDocument = iframe.contentDocument;
-      const iframeWindow = iframe.contentWindow;
-      
-      // Apply zoom using transform scale on the body
-      if (iframeDocument.body) {
-        // Calculate visible area dimensions
-        const viewportHeight = iframeWindow.innerHeight;
-        const viewportWidth = iframeWindow.innerWidth;
-        
-        // Store current scroll position
-        const scrollX = iframeWindow.scrollX;
-        const scrollY = iframeWindow.scrollY;
-        
-        // Calculate the center point of the current viewport in document coordinates
-        const centerX = scrollX + (viewportWidth / 2);
-        const centerY = scrollY + (viewportHeight / 2);
-        
-        // Calculate how the center point will change after scaling
-        const scaleFactor = zoomLevel / previousZoomLevelRef.current;
-        
-        // Apply the zoom transformation
-        iframeDocument.body.style.transformOrigin = 'top left';
-        iframeDocument.body.style.transform = `scale(${zoomLevel})`;
-        iframeDocument.body.style.width = `${100 / zoomLevel}%`;
-        iframeDocument.body.style.height = 'auto'; // Allow height to adjust naturally
-        iframeDocument.body.style.minHeight = '100%';
-        
-        // Calculate new scroll position to keep the same point centered
-        const newCenterX = centerX * scaleFactor;
-        const newCenterY = centerY * scaleFactor;
-        
-        // Calculate new scroll position (accounting for current viewport size)
-        const newScrollX = newCenterX - (viewportWidth / 2);
-        const newScrollY = newCenterY - (viewportHeight / 2);
-        
-        // Add a slight delay to ensure the transform has been applied
-        setTimeout(() => {
-          // Scroll to the new position to maintain the same content in view
-          iframeWindow.scrollTo({
-            left: newScrollX,
-            top: newScrollY,
-            behavior: 'auto' // Use instant scroll to prevent jarring shift
-          });
-          
-          // Trigger a resize event to recalculate content layout
-          const resizeEvent = new Event('resize');
-          iframeWindow.dispatchEvent(resizeEvent);
-        }, 10);
+  // Handle wheel events on the container to prevent page scrolling when zooming
+  const handleContainerScroll = (event: React.WheelEvent) => {
+    // Check if Ctrl key is pressed (zooming)
+    if (event.ctrlKey) {
+      event.preventDefault();
+      // Implement smooth zooming
+      if (event.deltaY < 0) {
+        zoomIn();
+      } else {
+        zoomOut();
       }
-      
-      previousZoomLevelRef.current = zoomLevel;
     }
-  }, [zoomLevel]); // Only depend on zoomLevel, not document or highlightedElementId
-
-  // Handle document loading and highlighting
-  useEffect(() => {
-    const iframe = iframeRef.current;
-    if (!iframe || !document) return;
-
-    // General document load handler
-    const handleLoad = () => {
-      const iframeDocument = iframe.contentDocument;
-      if (!iframeDocument) return;
-
-      // Handle international filings differently - preserve original structure
-      if (isInternationalFiling(document.sourceType)) {
-        // Add only minimal styles for highlighting
-        const style = iframeDocument.createElement('style');
-        style.textContent = `
-          .highlighted {
-            background-color: yellow !important;
-          }
-          .highlighted * {
-            background-color: transparent !important;
-          }
-          .first-highlighted {
-            margin-top: 12px !important;
-          }
-        `;
-        iframeDocument.head.appendChild(style);
-        
-        // Apply zoom manually
-        if (zoomLevel !== 1) {
-          const zoomStyle = iframeDocument.createElement('style');
-          zoomStyle.textContent = `
-            body {
-              transform-origin: top left;
-              transform: scale(${zoomLevel});
-              width: ${100 / zoomLevel}%;
-            }
-          `;
-          iframeDocument.head.appendChild(zoomStyle);
-        }
-        
-        // Call international filing specific handler
-        handleInternationalFilingHighlight(iframe, highlightedElementId);
-        
-        // Setup shareable link buttons
-        setupShareableLinkButtons(
-          iframeRef, 
-          shareableLinkButtonColor, 
-          document, 
-          highlightedElementId, 
-          areShareableLinksEnabled
-        );
-        
-        return;
-      }
-      
-      // Add styles for document types (for non-international filings)
-      if (document.sourceType === '8-K' || isProxyStatement(document.sourceType)) {
-        const style = iframeDocument.createElement('style');
-        style.textContent = generatePageBasedDocumentStyles(zoomLevel);
-        iframeDocument.head.appendChild(style);
-        
-        // Call page-based document specific handler
-        handlePageBasedDocumentLoad(iframe, document, highlightedElementId);
-        return;
-      }
-
-      // Handle standard document types (10-K, 10-Q, transcripts)
-      handleStandardDocumentHighlight(
-        iframe, 
-        document, 
-        highlightedElementId, 
-        previousDocumentRef.current !== document.sourceLink || 
-          previousSourceTypeRef.current !== document.sourceType,
-        highlightElementsInRange
-      );
-
-      // Add general styles for all document types
-      const generalStyle = iframeDocument.createElement('style');
-      generalStyle.textContent = generateGeneralStyles(zoomLevel);
-      iframeDocument.head.appendChild(generalStyle);
-
-      // Setup shareable link buttons after all other processing
-      setTimeout(() => {
-        setupShareableLinkButtons(
-          iframeRef, 
-          shareableLinkButtonColor, 
-          document, 
-          highlightedElementId, 
-          areShareableLinksEnabled
-        );
-      }, 500); // Give time for all highlights to be applied
-    };
-
-    // Get HTML content based on document type
-    let htmlContent: string;
-    let documentIdentifier: string | null = null;
-    
-    htmlContent = document.htmlContent || '';
-    documentIdentifier = document.sourceLink;
-    
-    // Special handling for 8-K documents only
-    if (document.sourceType === '8-K') {
-      htmlContent = processHtmlForPageBreaks(htmlContent);
-    }
-    
-    // For international filings (especially 20-F), use a different approach
-    let formattedHtmlContent: string;
-    
-    if (isInternationalFiling(document.sourceType)) {
-      // Preserve the original HTML structure completely for international filings
-      // Only add minimal head content to allow highlighting and zoom
-      formattedHtmlContent = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <base target="_blank">
-            <script>
-              // Simple resize handler
-              window.addEventListener('resize', function() {
-                if (window.parent) {
-                  window.parent.postMessage({ type: 'resize', height: document.body.scrollHeight }, '*');
-                }
-              });
-              
-              // Report document height after load
-              window.addEventListener('load', function() {
-                setTimeout(function() {
-                  if (window.parent) {
-                    window.parent.postMessage({ type: 'resize', height: document.body.scrollHeight }, '*');
-                  }
-                }, 100);
-              });
-            </script>
-          </head>
-          <body>${htmlContent}</body>
-        </html>
-      `;
-    } else {
-      // For standard documents, use the regular template
-      formattedHtmlContent = getBaseHtmlTemplate(htmlContent);
-    }
-
-    // Check if we're loading a new document or just updating the highlight in the same document
-    const isDocumentChange = previousDocumentRef.current !== documentIdentifier || 
-                           previousSourceTypeRef.current !== document.sourceType;
-
-    if (isDocumentChange) {
-      // Only reset the iframe content if we're loading a new document
-      iframe.srcdoc = formattedHtmlContent;
-      previousDocumentRef.current = documentIdentifier;
-      previousSourceTypeRef.current = document.sourceType;
-    } else {
-      // For the same document with a new highlight, just handle the highlighting
-      handleLoad();
-    }
-
-    iframe.addEventListener('load', handleLoad);
-    return () => iframe.removeEventListener('load', handleLoad);
-  }, [document, highlightedElementId, zoomLevel, areShareableLinksEnabled, shareableLinkButtonColor]);
-
-  // Apply hover handlers when highlighting changes
-  useEffect(() => {
-    // Give time for highlighting to be applied
-    const timeoutId = setTimeout(() => {
-      setupShareableLinkButtons(
-        iframeRef, 
-        shareableLinkButtonColor, 
-        document, 
-        highlightedElementId, 
-        areShareableLinksEnabled
-      );
-    }, 1000);
-    
-    return () => clearTimeout(timeoutId);
-  }, [highlightedElementId, document, areShareableLinksEnabled, shareableLinkButtonColor]);
-
-  // Close the tooltip
-  const closeTooltip = () => {
-    setTooltipVisible(false);
-    setTooltipElementId(null);
   };
-
-  // Set tooltip visibility
-  const showTooltip = (position: TooltipPosition, elementId: string) => {
-    setTooltipPosition(position);
-    setTooltipElementId(elementId);
-    setTooltipVisible(true);
-  };
-
-  // Add event listener to handle clicks outside tooltip to close it
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (tooltipVisible) {
-        // Only close if click is not inside the tooltip itself
-        const tooltipContainer = window.document.querySelector('.shareable-link-tooltip-container');
-        if (tooltipContainer && !tooltipContainer.contains(event.target as Node)) {
-          closeTooltip();
-        }
-      }
-    };
-    
-    window.document.addEventListener('click', handleClickOutside);
-    return () => {
-      window.document.removeEventListener('click', handleClickOutside);
-    };
-  }, [tooltipVisible]);
-
-  // Add a resize listener in the parent component
-  useEffect(() => {
-    const handleIframeResize = (event: MessageEvent) => {
-      if (event.data && event.data.type === 'resize') {
-        // You could adjust the container or iframe height here if needed
-      }
-    };
-    
-    window.addEventListener('message', handleIframeResize);
-    return () => {
-      window.removeEventListener('message', handleIframeResize);
-    };
-  }, []);
 
   // Ensure scrolling works regardless of focus
   useEffect(() => {
     const containerElement = containerRef.current;
-    const iframeElement = iframeRef.current;
-    
-    if (!containerElement || !iframeElement) return;
+    if (!containerElement) return;
     
     // Function to handle scroll events from the container
     const handleContainerScroll = (event: WheelEvent) => {
-      // If the iframe content document isn't loaded yet, don't do anything
-      if (!iframeElement.contentWindow || !iframeElement.contentDocument) return;
+      // If ctrl is pressed, let the zoom handler take care of it
+      if (event.ctrlKey) return;
       
-      // Prevent default to avoid parent scrolling
-      event.preventDefault();
-      
-      // Calculate the scroll amount
-      const scrollAmount = event.deltaY;
-      
-      // Scroll the iframe content
-      iframeElement.contentWindow.scrollBy({
-        top: scrollAmount,
-        behavior: 'auto'
-      });
+      // Otherwise, allow normal scrolling behavior
+      // No need to prevent default or handle custom scrolling
     };
     
     // Add scroll event listener to the container
-    containerElement.addEventListener('wheel', handleContainerScroll, { passive: false });
+    containerElement.addEventListener('wheel', handleContainerScroll, { passive: true });
     
     // Clean up event listener on unmount
     return () => {
@@ -425,65 +91,165 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     };
   }, []);
   
-  // Auto-focus the iframe when content changes
-  useEffect(() => {
-    const iframe = iframeRef.current;
-    if (!iframe || !document) return;
-    
-    // Give focus to the iframe for better scroll behavior
-    iframe.addEventListener('load', () => {
-      // Focus after a short delay to ensure content is ready
-      setTimeout(() => {
-        if (iframe.contentWindow) {
-          // Try to focus the iframe window
-          iframe.contentWindow.focus();
-        }
-      }, 200);
+  // Create a React.Suspense fallback for dynamic components
+  const loadingFallback = (
+    <div className="w-full h-full flex items-center justify-center bg-gray-50">
+      <div className="text-lg font-medium text-gray-500">
+        Loading viewer component...
+      </div>
+    </div>
+  );
+
+  // Determine which viewer to render based on document type and file type
+  const renderAppropriateViewer = () => {
+    // If no document or loading, show loading state
+    if (!document || isLoading) {
+      console.log('[DocumentViewer] No document or still loading:', { 
+        documentExists: !!document, 
+        isLoading 
+      });
+      return (
+        <div className="w-full h-full flex items-center justify-center bg-gray-50">
+          <div className="text-lg font-medium text-gray-500">
+            {isLoading ? 'Loading document...' : 'No document loaded'}
+          </div>
+        </div>
+      );
+    }
+
+    // Debug document properties
+    console.log('[DocumentViewer] Document properties:', {
+      sourceType: document.sourceType,
+      fileType: document.fileType,
+      sasUrl: document.sasUrl,
+      contentType: document.contentType,
+      fileName: document.fileName
     });
-  }, [document]);
 
-  if (isLoading) {
-    return <div className={className} style={style}></div>;
-  }
+    // CASE 1: PDF Documents
+    // For documents with PDF file type or PDF content type
+    const isPDF = document.fileType === 'pdf' || 
+                  document.contentType === 'application/pdf' ||
+                  (document.fileName && document.fileName.toLowerCase().endsWith('.pdf'));
+      
+    if (isPDF && document.sasUrl) {
+      console.log('[DocumentViewer] ✅ Rendering PDF viewer');
+      console.log(`[DocumentViewer] Using sasUrl: ${document.sasUrl.substring(0, 50)}...`);
+      
+      return (
+        <React.Suspense 
+          fallback={
+            <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50 p-4">
+              <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mb-4"></div>
+              <div className="text-lg font-medium text-gray-500">Loading PDF viewer...</div>
+              <div className="text-sm text-gray-400 mt-2">This may take a moment</div>
+            </div>
+          }
+        >
+          <PDFViewer
+            sasUrl={document.sasUrl}
+            className={className}
+            style={style}
+            zoomLevel={zoomLevel}
+            highlightedElementId={highlightedElementId}
+            key={`pdf-${document.sasUrl}`}
+          />
+        </React.Suspense>
+      );
+    }
+      
+    // CASE 2: Excel/Spreadsheet Documents
+    const isSpreadsheet = document.fileType === 'xlsx' || 
+          document.contentType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                         (document.fileName && 
+                          (document.fileName.toLowerCase().endsWith('.xlsx') || 
+                           document.fileName.toLowerCase().endsWith('.csv') || 
+                           document.fileName.toLowerCase().endsWith('.xls')));
+                           
+    if (isSpreadsheet && document.sasUrl) {
+      console.log('[DocumentViewer] ✅ Rendering Spreadsheet viewer');
+      console.log(`[DocumentViewer] Using sasUrl: ${document.sasUrl.substring(0, 50)}...`);
+      
+      return (
+        <React.Suspense fallback={loadingFallback}>
+          <SpreadsheetViewer
+            sasUrl={document.sasUrl}
+            className={className}
+            style={style}
+          />
+        </React.Suspense>
+      );
+    }
 
-  if (!document) {
-    return <div className={className} style={style}></div>;
-  }
+    // CASE 3: HTML Documents (the default case)
+    console.log('[DocumentViewer] ✅ Rendering HTML viewer');
+    return (
+      <HTMLViewer
+        document={document}
+        highlightedElementId={highlightedElementId}
+        zoomLevel={zoomLevel}
+        className={className}
+        style={style}
+        enableShareableLinks={enableShareableLinks}
+        shareableLinkBaseUrl={shareableLinkBaseUrl}
+        shareableLinkButtonColor={shareableLinkButtonColor}
+            viewerRoutePath={viewerRoutePath}
+          />
+    );
+  };
 
+  // Render the component
   return (
-    <div 
+    <div
       ref={containerRef}
-      className="relative flex flex-col h-full group"
-      // Add touch events handler for mobile devices
-      onTouchStart={() => {
-        // Focus the iframe when user touches the container
-        if (iframeRef.current?.contentWindow) {
-          iframeRef.current.contentWindow.focus();
-        }
+      className="relative"
+      style={{
+        width: '100%',
+        height: '100%',
+        overflow: 'hidden'
       }}
+      onWheel={handleContainerScroll}
     >
+      {renderAppropriateViewer()}
+      
+      {/* Zoom controls UI */}
       {showZoomControls && (
-        <div className="absolute mt-2 top-12 right-2 z-10 flex items-center space-x-1 bg-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 border border-gray-300">
-          <button 
+        <div className="absolute bottom-4 right-4 bg-white rounded-lg shadow flex items-center p-1">
+          <button
             onClick={zoomOut}
-            className="p-1 hover:bg-gray-100 rounded"
-            title="Zoom out"
+            className="p-2 hover:bg-gray-100 rounded-l-lg"
             aria-label="Zoom out"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
               <line x1="8" y1="11" x2="14" y2="11"></line>
             </svg>
           </button>
           
-          <button 
+          <div className="px-2 min-w-[60px] text-center">
+            {Math.round(zoomLevel * 100)}%
+          </div>
+          
+          <button
+            onClick={resetZoom}
+            className="p-2 hover:bg-gray-100"
+            aria-label="Reset zoom"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+              <path d="M3 3v5h5"></path>
+              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+              <path d="M16 16h5v5"></path>
+            </svg>
+          </button>
+          
+          <button
             onClick={zoomIn}
-            className="p-1 hover:bg-gray-100 rounded"
-            title="Zoom in"
+            className="p-2 hover:bg-gray-100 rounded-r-lg"
             aria-label="Zoom in"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
               <line x1="11" y1="8" x2="11" y2="14"></line>
@@ -492,34 +258,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           </button>
         </div>
       )}
-      
-      {/* Shareable Link Tooltip */}
-      {areShareableLinksEnabled && document && (
-        <ShareableLinkTooltip
-          isVisible={tooltipVisible}
-          position={tooltipPosition}
-          sourceLink={document.sourceLink}
-          elementId={tooltipElementId}
-          baseUrl={shareableLinkBaseUrl}
-          onClose={closeTooltip}
-          buttonColor={shareableLinkButtonColor}
-          viewerRoutePath={viewerRoutePath}
-        />
-      )}
-      
-      <iframe
-        ref={iframeRef}
-        className={className}
-        style={{
-          ...style,
-          width: '100%',
-          height: '100%',
-          overflow: 'auto',
-        }}
-        sandbox="allow-same-origin allow-popups allow-scripts allow-forms"
-        // Add a tabIndex to make the iframe focusable by keyboard
-        tabIndex={0}
-      />
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import { SourceType } from '../../../types';
+import { SourceType, FileType } from '../../../types';
 
 /**
  * Process HTML content for 8-K documents to identify page breaks and create page containers
@@ -189,4 +189,18 @@ export const isProxyStatement = (sourceType: string): boolean => {
          sourceType === 'DEFM14A' || 
          sourceType === 'DEF 14C' || 
          sourceType === 'DEFM14C';
+};
+
+/**
+ * Helper function to check if document is an IR document
+ */
+export const isIRDocument = (sourceType: string): boolean => {
+  return sourceType === 'ir';
+};
+
+/**
+ * Helper function to check if document is a binary document (PDF or Excel)
+ */
+export const isBinaryDocument = (sourceType: string, fileType?: FileType): boolean => {
+  return sourceType === 'ir' && !!fileType && (fileType === 'pdf' || fileType === 'xlsx');
 }; 
