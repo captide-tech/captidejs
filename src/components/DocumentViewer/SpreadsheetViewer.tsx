@@ -106,7 +106,7 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
-          style={{ color: '#107c41' }}
+          style={{ color: '#475569' }}
         >
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
           <polyline points="14 2 14 8 20 8"></polyline>
@@ -121,33 +121,18 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
       </h2>
       
       <p style={{ margin: '0 0 20px', color: '#666' }}>
-        Excel files can't be embedded directly in the browser.
-        Please choose one of the options below:
+        We'll support rendering Excel files soon. For now, please download the file.
       </p>
       
       <div style={{ display: 'flex', gap: '10px' }}>
-        <button
-          onClick={handleOpenInNewWindow}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#107c41',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontWeight: 'bold'
-          }}
-        >
-          Open in New Window
-        </button>
         
         <button
           onClick={handleDownload}
           style={{
             padding: '8px 16px',
-            backgroundColor: '#ffffff',
-            color: '#107c41',
-            border: '1px solid #107c41',
+            backgroundColor: '#475569',
+            color: '#ffffff',
+            border: '1px solid #475569',
             borderRadius: '4px',
             cursor: 'pointer',
             fontWeight: 'bold'
