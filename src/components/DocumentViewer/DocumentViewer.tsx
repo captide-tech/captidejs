@@ -176,6 +176,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             sasUrl={document.sasUrl}
             className={className}
             style={style}
+            zoomLevel={zoomLevel}
           />
         </React.Suspense>
       );

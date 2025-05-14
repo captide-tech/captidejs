@@ -5,6 +5,7 @@ interface SpreadsheetViewerProps {
   sasUrl: string;
   className?: string;
   style?: React.CSSProperties;
+  zoomLevel?: number;
 }
 
 // Simple placeholder component for non-browser environments
@@ -35,7 +36,8 @@ const SpreadsheetPlaceholder: React.FC<{className?: string; style?: React.CSSPro
 const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
   sasUrl,
   className = 'w-full h-full',
-  style
+  style,
+  zoomLevel = 1.0
 }) => {
   // Define all state hooks at the top level
   const [isBrowser, setIsBrowser] = useState(false);
@@ -44,11 +46,17 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
   const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
   const [activeSheet, setActiveSheet] = useState<string | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
+  const [currentZoom, setCurrentZoom] = useState(zoomLevel);
 
   // Check if we're in a browser environment
   useEffect(() => {
     setIsBrowser(typeof window !== 'undefined' && typeof document !== 'undefined');
   }, []);
+
+  // Update current zoom when prop changes
+  useEffect(() => {
+    setCurrentZoom(zoomLevel);
+  }, [zoomLevel]);
 
   // Fetch and process the spreadsheet
   useEffect(() => {
@@ -104,12 +112,19 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
     if (table) {
       table.style.width = '100%';
       table.style.borderCollapse = 'collapse';
+      table.style.fontSize = '13px'; // Smaller default font size
+      
+      // Apply zoom
+      if (currentZoom !== 1) {
+        table.style.transform = `scale(${currentZoom})`;
+        table.style.transformOrigin = 'top left';
+      }
       
       // Style all cells
       const cells = table.querySelectorAll('td, th');
       cells.forEach(cell => {
         (cell as HTMLElement).style.border = '1px solid #e0e0e0';
-        (cell as HTMLElement).style.padding = '4px 8px';
+        (cell as HTMLElement).style.padding = '4px 6px'; // Smaller padding
         (cell as HTMLElement).style.textAlign = 'left';
       });
       
@@ -120,7 +135,7 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
         (header as HTMLElement).style.fontWeight = 'bold';
       });
     }
-  }, [workbook, activeSheet]);
+  }, [workbook, activeSheet, currentZoom]);
 
   const handleOpenInNewWindow = () => {
     window.open(sasUrl, '_blank');
@@ -247,8 +262,12 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
               border: '1px solid #475569',
               borderRadius: '4px',
               cursor: 'pointer',
-              fontWeight: 'bold'
+              fontWeight: 'bold',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.15)',
+              transition: 'background-color 0.2s ease'
             }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#3f4a5c'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#475569'}
           >
             Download Instead
           </button>
@@ -297,8 +316,12 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
               border: '1px solid #475569',
               borderRadius: '4px',
               cursor: 'pointer',
-              fontWeight: 'bold'
+              fontWeight: 'bold',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.15)',
+              transition: 'background-color 0.2s ease'
             }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#3f4a5c'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#475569'}
           >
             Download
           </button>
@@ -316,7 +339,6 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
           flexDirection: 'column',
           padding: '16px',
           backgroundColor: '#ffffff',
-          border: '1px solid #e0e0e0',
           borderRadius: '4px',
           overflow: 'auto'
         }}
@@ -341,8 +363,12 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
               fontWeight: 'bold',
               display: 'flex',
               alignItems: 'center',
-              gap: '4px'
+              gap: '4px',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+              transition: 'background-color 0.2s ease'
             }}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e2e8f0'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
