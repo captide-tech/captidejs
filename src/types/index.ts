@@ -107,6 +107,14 @@ export interface BinarySourceDocument extends SourceDocumentBase {
   
   /** File name of the document */
   fileName?: string;
+  
+  /** Additional metadata containing source information */
+  metadata?: {
+    /** URL to the original source webpage where the document was obtained */
+    webpageUrl?: string;
+    /** Any other metadata properties */
+    [key: string]: any;
+  };
 }
 
 /**
@@ -130,6 +138,14 @@ export interface InternalDocument extends HtmlSourceDocument {
   
   /** File name of the document */
   fileName?: string;
+  
+  /** Additional metadata for the document */
+  metadata?: {
+    /** URL to the original source webpage where the document was obtained */
+    webpageUrl?: string;
+    /** Any other metadata properties */
+    [key: string]: any;
+  };
 }
 
 /**

@@ -1,12 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
+import { InternalDocument } from '../../types';
 
 interface SpreadsheetViewerProps {
   sasUrl: string;
   className?: string;
   style?: React.CSSProperties;
   zoomLevel?: number;
+  document?: InternalDocument; // Properly typed document prop
 }
+
+// Helper function to extract domain from URL
+const extractDomain = (url: string): string => {
+  try {
+    const urlObj = new URL(url);
+    // Remove 'www.' if present
+    return urlObj.hostname.replace(/^www\./, '');
+  } catch (e) {
+    console.error('Error extracting domain:', e);
+    return 'website';
+  }
+};
 
 // Simple placeholder component for non-browser environments
 const SpreadsheetPlaceholder: React.FC<{className?: string; style?: React.CSSProperties}> = ({
@@ -37,7 +51,8 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
   sasUrl,
   className = 'w-full h-full',
   style,
-  zoomLevel = 1.0
+  zoomLevel = 1.0,
+  document
 }) => {
   // Define all state hooks at the top level
   const [isBrowser, setIsBrowser] = useState(false);
@@ -47,7 +62,10 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
   const [activeSheet, setActiveSheet] = useState<string | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
   const [currentZoom, setCurrentZoom] = useState(zoomLevel);
-
+  
+  // Extract webpage URL from document metadata if available
+  const webpageUrl = document?.metadata?.webpageUrl || null;
+  console.log("💕document", document);
   // Check if we're in a browser environment
   useEffect(() => {
     setIsBrowser(typeof window !== 'undefined' && typeof document !== 'undefined');
@@ -108,7 +126,7 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
     tableRef.current.innerHTML = html;
     
     // Apply styling to the table
-    const table = document.getElementById('spreadsheet-table');
+    const table = window.document.getElementById('spreadsheet-table');
     if (table) {
       table.style.width = '100%';
       table.style.borderCollapse = 'collapse';
@@ -122,7 +140,7 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
       
       // Style all cells
       const cells = table.querySelectorAll('td, th');
-      cells.forEach(cell => {
+      cells.forEach((cell: Element) => {
         (cell as HTMLElement).style.border = '1px solid #e0e0e0';
         (cell as HTMLElement).style.padding = '4px 6px'; // Smaller padding
         (cell as HTMLElement).style.textAlign = 'left';
@@ -130,7 +148,7 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
       
       // Style headers
       const headers = table.querySelectorAll('th');
-      headers.forEach(header => {
+      headers.forEach((header: Element) => {
         (header as HTMLElement).style.backgroundColor = '#f5f5f5';
         (header as HTMLElement).style.fontWeight = 'bold';
       });
@@ -143,7 +161,7 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
 
   const handleDownload = () => {
     // Create a temporary anchor element
-    const a = document.createElement('a');
+    const a = window.document.createElement('a');
     a.href = sasUrl;
     a.download = 'document.xlsx'; // Default filename
     
@@ -165,9 +183,15 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
     }
     
     // Trigger download
-    document.body.appendChild(a);
+    window.document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
+    window.document.body.removeChild(a);
+  };
+  
+  const handleOpenSourceWebpage = () => {
+    if (webpageUrl) {
+      window.open(webpageUrl, '_blank');
+    }
   };
 
   // Sheet selector for workbooks with multiple sheets
@@ -264,13 +288,37 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
               cursor: 'pointer',
               fontWeight: 'bold',
               boxShadow: '0 1px 2px rgba(0, 0, 0, 0.15)',
-              transition: 'background-color 0.2s ease'
+              transition: 'background-color 0.2s ease',
+              fontSize: '12px'
             }}
             onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#3f4a5c'}
             onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#475569'}
           >
             Download Instead
           </button>
+          
+          {webpageUrl && (
+            <button
+              onClick={handleOpenSourceWebpage}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#ffffff',
+                color: '#475569',
+                border: '1px solid #475569',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.15)',
+                transition: 'background-color 0.2s ease',
+                fontSize: '12px'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#ffffff'}
+              title={`Open original source website: ${extractDomain(webpageUrl)}`}
+            >
+              View Source: {extractDomain(webpageUrl)}
+            </button>
+          )}
         </div>
       </>
     );
@@ -318,13 +366,37 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
               cursor: 'pointer',
               fontWeight: 'bold',
               boxShadow: '0 1px 2px rgba(0, 0, 0, 0.15)',
-              transition: 'background-color 0.2s ease'
+              transition: 'background-color 0.2s ease',
+              fontSize: '12px'
             }}
             onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#3f4a5c'}
             onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#475569'}
           >
             Download
           </button>
+          
+          {webpageUrl && (
+            <button
+              onClick={handleOpenSourceWebpage}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#ffffff',
+                color: '#475569',
+                border: '1px solid #475569',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.15)',
+                transition: 'background-color 0.2s ease',
+                fontSize: '12px'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#ffffff'}
+              title={`Open original source website: ${extractDomain(webpageUrl)}`}
+            >
+              View Source: {extractDomain(webpageUrl)}
+            </button>
+          )}
         </div>
       </>
     );
@@ -351,42 +423,86 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
         }}>
           {renderSheetSelector()}
           
-          <button
-            onClick={handleDownload}
-            style={{
-              padding: '6px 12px',
-              backgroundColor: '#f1f5f9',
-              color: '#475569',
-              border: '1px solid #cbd5e1',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
-              transition: 'background-color 0.2s ease'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e2e8f0'}
-            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {webpageUrl && (
+              <button
+                onClick={handleOpenSourceWebpage}
+                style={{
+                  padding: '6px 12px',
+                  backgroundColor: '#ffffff',
+                  color: '#475569',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+                  transition: 'background-color 0.2s ease',
+                  fontSize: '12px'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}
+                onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#ffffff'}
+                title={`Open original source website: ${extractDomain(webpageUrl)}`}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                  <polyline points="15 3 21 3 21 9"></polyline>
+                  <line x1="10" y1="14" x2="21" y2="3"></line>
+                </svg>
+                Source: {extractDomain(webpageUrl)}
+              </button>
+            )}
+          
+            <button
+              onClick={handleDownload}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: '#f1f5f9',
+                color: '#475569',
+                border: '1px solid #cbd5e1',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+                transition: 'background-color 0.2s ease',
+                fontSize: '12px'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#e2e8f0'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
             >
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-            Download
-          </button>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Download
+            </button>
+          </div>
         </div>
         
         <div 

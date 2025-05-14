@@ -174,7 +174,9 @@ function convertToInternalDocument(document: SourceDocument, highlightedElementI
                   (((normalizedDoc as any).fileName || '').toLowerCase().endsWith('.pdf') ? 'application/pdf' : 
                   (((normalizedDoc as any).fileName || '').toLowerCase().endsWith('.xlsx') ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/octet-stream')),
       fileName: (normalizedDoc as any).fileName,
-      sasUrl: (normalizedDoc as any).sasUrl
+      sasUrl: (normalizedDoc as any).sasUrl,
+      // Include metadata from the original document
+      metadata: (normalizedDoc as any).metadata
     };
     
     console.log('[DocumentViewerContext] Created internal document from SAS URL:', internalDoc);
