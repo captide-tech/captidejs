@@ -100,11 +100,15 @@ const HTMLViewer: React.FC<HTMLViewerProps> = ({
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState<TooltipPosition>({ x: 0, y: 0 });
   const [tooltipElementId, setTooltipElementId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Handle document loading and highlighting
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe || !document) return;
+
+    // Set loading state
+    setIsLoading(true);
 
     // General document load handler
     const handleLoad = () => {
@@ -153,6 +157,8 @@ const HTMLViewer: React.FC<HTMLViewerProps> = ({
           areShareableLinksEnabled
         );
         
+        // Set loading to false after processing
+        setIsLoading(false);
         return;
       }
       
@@ -164,6 +170,9 @@ const HTMLViewer: React.FC<HTMLViewerProps> = ({
         
         // Call page-based document specific handler
         handlePageBasedDocumentLoad(iframe, document, highlightedElementId);
+        
+        // Set loading to false after processing
+        setIsLoading(false);
         return;
       }
 
@@ -191,6 +200,9 @@ const HTMLViewer: React.FC<HTMLViewerProps> = ({
           highlightedElementId, 
           areShareableLinksEnabled
         );
+        
+        // Set loading to false after all processing is done
+        setIsLoading(false);
       }, 500); // Give time for all highlights to be applied
     };
 
@@ -327,7 +339,7 @@ const HTMLViewer: React.FC<HTMLViewerProps> = ({
   const html = document && document.htmlContent ? getBaseHtmlTemplate(document.htmlContent) : '';
 
   return (
-    <>
+    <div className="relative w-full h-full">
       <iframe
         ref={iframeRef}
         srcDoc={html}
@@ -335,10 +347,41 @@ const HTMLViewer: React.FC<HTMLViewerProps> = ({
         style={{
           ...style,
           border: 'none',
-          opacity: document?.htmlContent ? 1 : 0, // Hide iframe until content is loaded
+          opacity: isLoading ? 0 : 1, // Hide iframe until content is loaded
         }}
         title="Document Viewer"
       />
+      
+      {/* Loading spinner */}
+      {isLoading && (
+        <div 
+          className="absolute inset-0 flex flex-col items-center justify-center bg-gray-50"
+          style={{
+            zIndex: 10
+          }}
+        >
+          <div style={{ 
+            width: '40px', 
+            height: '40px', 
+            border: '3px solid #f3f3f3',
+            borderTop: '3px solid #475569',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            marginBottom: '20px'
+          }} />
+          <style>
+            {`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+            `}
+          </style>
+          <div className="text-gray-600 font-medium text-lg mb-2">Loading document...</div>
+          <div className="text-gray-400 text-sm">Preparing content</div>
+        </div>
+      )}
+      
       {areShareableLinksEnabled && shareableLinkBaseUrl && (
         <ShareableLinkTooltip
           isVisible={tooltipVisible}
@@ -351,7 +394,7 @@ const HTMLViewer: React.FC<HTMLViewerProps> = ({
           viewerRoutePath={viewerRoutePath}
         />
       )}
-    </>
+    </div>
   );
 };
 

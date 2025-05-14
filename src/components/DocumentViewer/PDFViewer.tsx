@@ -427,6 +427,23 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
       {/* Loading overlay */}
       {isLoading && (
         <div className="pdf-loading">
+          <div style={{ 
+            width: '40px', 
+            height: '40px', 
+            border: '3px solid #f3f3f3',
+            borderTop: '3px solid #475569',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            marginBottom: '20px'
+          }} />
+          <style>
+            {`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+            `}
+          </style>
           <div className="text-gray-600 font-medium text-lg mb-2">Loading PDF...</div>
           <div className="text-gray-400 text-sm">
             {numPages === 0 ? 'Preparing document...' : 'Rendering pages...'}
@@ -470,7 +487,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
           <div className="absolute top-4 right-4 z-10">
             <button
               onClick={handleDownload}
-              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 text-sm text-gray-700"
+              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 text-sm text-gray-700 cursor-pointer"
               title="Download PDF"
             >
               <svg
