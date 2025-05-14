@@ -42,6 +42,33 @@ const SpreadsheetPlaceholder: React.FC<{className?: string; style?: React.CSSPro
   </div>
 );
 
+// Helper function to detect invalid/corrupted sheet data
+const isValidSheet = (worksheet: XLSX.WorkSheet): boolean => {
+  try {
+    // Check for XML-like metadata content that indicates a corrupted sheet
+    const html = XLSX.utils.sheet_to_html(worksheet);
+    
+    // Check for common markers of corrupted XML metadata in spreadsheets
+    const invalidMarkers = [
+      '<OBJECT><META>',
+      '<BBOOKS>',
+      '<QUERY reftype=',
+      '<QUERIES bbk='
+    ];
+    
+    for (const marker of invalidMarkers) {
+      if (html.includes(marker)) {
+        return false;
+      }
+    }
+    
+    return true;
+  } catch (e) {
+    console.error('Error validating sheet:', e);
+    return false;
+  }
+};
+
 /**
  * Spreadsheet Viewer Component
  * 
@@ -61,13 +88,14 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
+  const [validSheets, setValidSheets] = useState<string[]>([]);
   const [activeSheet, setActiveSheet] = useState<string | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
   const [currentZoom, setCurrentZoom] = useState(zoomLevel);
   
   // Extract webpage URL from document metadata if available
   const webpageUrl = document?.metadata?.webpageUrl || null;
-  console.log("💕document", document);
+  
   // Check if we're in a browser environment
   useEffect(() => {
     setIsBrowser(typeof window !== 'undefined' && typeof document !== 'undefined');
@@ -99,9 +127,20 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
         const wb = XLSX.read(arrayBuffer, { type: 'array' });
         setWorkbook(wb);
         
-        // Set the first sheet as active by default
-        if (wb.SheetNames.length > 0) {
-          setActiveSheet(wb.SheetNames[0]);
+        // Filter out invalid sheets
+        const validSheetNames = wb.SheetNames.filter(sheetName => {
+          const worksheet = wb.Sheets[sheetName];
+          return isValidSheet(worksheet);
+        });
+        
+        setValidSheets(validSheetNames);
+        
+        // Set the first valid sheet as active by default if available
+        if (validSheetNames.length > 0) {
+          setActiveSheet(validSheetNames[0]);
+        } else if (wb.SheetNames.length > 0) {
+          // If no valid sheets, still keep the workbook but don't set active sheet
+          setWorkbook(wb);
         }
       } catch (err) {
         console.error('Error loading spreadsheet:', err);
@@ -120,6 +159,12 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
     
     // Get the worksheet
     const worksheet = workbook.Sheets[activeSheet];
+    
+    // Skip rendering if the sheet is invalid
+    if (!isValidSheet(worksheet)) {
+      tableRef.current.innerHTML = '<div style="padding: 20px; color: #666;">This sheet contains invalid or corrupted data and cannot be displayed.</div>';
+      return;
+    }
     
     // Convert to HTML
     const html = XLSX.utils.sheet_to_html(worksheet, { id: 'spreadsheet-table' });
@@ -198,7 +243,7 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
 
   // Sheet selector for workbooks with multiple sheets
   const renderSheetSelector = () => {
-    if (!workbook || workbook.SheetNames.length <= 1) return null;
+    if (!workbook || validSheets.length <= 1) return null;
     
     return (
       <div style={{ marginBottom: '10px' }}>
@@ -215,7 +260,7 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
             border: '1px solid #ccc'
           }}
         >
-          {workbook.SheetNames.map(name => (
+          {validSheets.map(name => (
             <option key={name} value={name}>{name}</option>
           ))}
         </select>
@@ -293,7 +338,7 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
         </div>
       </>
     );
-  } else if (!workbook) {
+  } else if (!workbook || validSheets.length === 0) {
     content = (
       <>
         <div style={{ marginBottom: '20px' }}>
@@ -322,7 +367,9 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
         </h2>
         
         <p style={{ margin: '0 0 20px', color: '#666' }}>
-          Unable to render the spreadsheet. You can download it instead.
+          {validSheets.length === 0 && workbook ? 
+            "No valid sheets found in this spreadsheet. You can download the file instead." : 
+            "Unable to render the spreadsheet. You can download it instead."}
         </p>
         
         <div style={{ display: 'flex', gap: '10px' }}>
@@ -341,7 +388,7 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
       </>
     );
   } else {
-    // Successful render with workbook
+    // Successful render with workbook and valid sheets
     return (
       <div
         className={className}
@@ -387,7 +434,7 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
   }
 
   // For loading, error, and no workbook states
-  if (isLoading || error || !workbook) {
+  if (isLoading || error || !workbook || validSheets.length === 0) {
     return (
       <div 
         className={className}
