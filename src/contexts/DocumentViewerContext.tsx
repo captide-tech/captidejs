@@ -31,7 +31,7 @@ const initialState: DocumentViewerState = {
   isLoading: false,
   isOpen: false,
   tabs: [],
-  zoomLevel: 1.0
+  zoomLevel: 0.8
 };
 
 // Create context with a meaningful initial undefined value to detect improper usage
@@ -734,10 +734,10 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
   }, [updateDocumentViewer, state.zoomLevel]);
 
   /**
-   * Resets zoom to the default level (100%)
+   * Resets zoom to the default level (80%)
    */
   const resetZoom = useCallback(() => {
-    updateDocumentViewer({ zoomLevel: 1.0 });
+    updateDocumentViewer({ zoomLevel: 0.8 });
   }, [updateDocumentViewer]);
 
   // Create the context value object

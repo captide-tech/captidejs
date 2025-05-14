@@ -1,5 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { extractPageNumberFromElementId } from './utils/pageUtils';
+import DownloadButton from './components/DownloadButton';
+import PageIndicator from './components/PageIndicator';
 
 // Import types from the pdfjs-dist package (using the types directory)
 import type { PDFDocumentProxy } from 'pdfjs-dist';
@@ -59,7 +61,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
   sasUrl,
   className = 'w-full h-full',
   style,
-  zoomLevel = 1.0,
+  zoomLevel = 0.2,
   highlightedElementId = null
 }) => {
   const viewerContainerRef = useRef<HTMLDivElement>(null);
@@ -209,18 +211,6 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
               padding: 20px;
               color: #d32f2f;
               text-align: center;
-            }
-            .pdf-page-indicator {
-              position: absolute;
-              bottom: 8px;
-              right: 8px;
-              background: white;
-              padding: 4px 8px;
-              border-radius: 4px;
-              font-size: 12px;
-              box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-              z-index: 5;
-              color: #333;
             }
           `;
           document.head.appendChild(customStyles);
@@ -468,45 +458,28 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
           >
             Reload Page
           </button>
-          <button 
-            className="mt-4 ml-2 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-            onClick={handleDownload}
-          >
-            Download PDF
-          </button>
+          <div className="mt-4 ml-2">
+            <DownloadButton 
+              onClick={handleDownload} 
+              label="Download PDF" 
+              primary={true}
+            />
+          </div>
         </div>
       )}
       
       {/* Page indicator and download button */}
       {(numPages > 0 && !error && !isLoading) && (
         <>
-          <div className="pdf-page-indicator">
-            Page {currentPage} of {numPages}
+          <div className="absolute top-2 left-2 z-10">
+            <PageIndicator 
+              currentPage={currentPage} 
+              totalPages={numPages} 
+            />
           </div>
           
-          <div className="absolute top-4 right-4 z-10">
-            <button
-              onClick={handleDownload}
-              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 text-sm text-gray-700 cursor-pointer"
-              title="Download PDF"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-              </svg>
-              Download
-            </button>
+          <div className="absolute top-2 right-4 z-10">
+            <DownloadButton onClick={handleDownload} />
           </div>
         </>
       )}
