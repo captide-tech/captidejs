@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { InternalDocument } from '../../types';
 import DownloadButton from './components/DownloadButton';
 import SourceButton from './components/SourceButton';
+import SheetSelector from './components/SheetSelector';
 
 interface SpreadsheetViewerProps {
   sasUrl: string;
@@ -246,25 +247,11 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
     if (!workbook || validSheets.length <= 1) return null;
     
     return (
-      <div style={{ marginBottom: '10px' }}>
-        <label htmlFor="sheet-selector" style={{ marginRight: '8px', fontWeight: 'bold' }}>
-          Sheet:
-        </label>
-        <select 
-          id="sheet-selector"
-          value={activeSheet || ''}
-          onChange={(e) => setActiveSheet(e.target.value)}
-          style={{
-            padding: '4px 8px',
-            borderRadius: '4px',
-            border: '1px solid #ccc'
-          }}
-        >
-          {validSheets.map(name => (
-            <option key={name} value={name}>{name}</option>
-          ))}
-        </select>
-      </div>
+      <SheetSelector
+        sheets={validSheets}
+        activeSheet={activeSheet || validSheets[0]}
+        onChange={setActiveSheet}
+      />
     );
   };
 
