@@ -73,6 +73,60 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
   // Only run in browser
   const isBrowser = typeof window !== 'undefined';
   
+  // Handle download functionality
+  const handleDownload = () => {
+    if (!sasUrl) return;
+    
+    // Attempt to download using fetch and blob
+    fetch(sasUrl)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.blob();
+      })
+      .then(blob => {
+        // Create a blob URL
+        const blobUrl = window.URL.createObjectURL(blob);
+        
+        // Create a temporary anchor element
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        
+        // Set download attribute with filename
+        let filename = 'document.pdf';
+        try {
+          // Try to extract filename from sasUrl if possible
+          const urlObj = new URL(sasUrl);
+          const pathParts = urlObj.pathname.split('/');
+          const potentialFilename = pathParts[pathParts.length - 1];
+          
+          if (potentialFilename && potentialFilename.includes('.pdf')) {
+            // Remove URL encoded characters if present
+            filename = decodeURIComponent(potentialFilename.split('?')[0]);
+          }
+        } catch (e) {
+          console.error('Error parsing URL for download:', e);
+          // Fall back to default name
+        }
+        
+        a.download = filename;
+        
+        // Trigger download
+        document.body.appendChild(a);
+        a.click();
+        
+        // Clean up
+        window.URL.revokeObjectURL(blobUrl);
+        document.body.removeChild(a);
+      })
+      .catch(error => {
+        console.error('Error downloading PDF:', error);
+        // Fallback: open in new window if download fails
+        window.open(sasUrl, '_blank');
+      });
+  };
+  
   // Initialize PDF.js in browser
   useEffect(() => {
     if (!isBrowser) return;
@@ -397,14 +451,47 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
           >
             Reload Page
           </button>
+          <button 
+            className="mt-4 ml-2 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+            onClick={handleDownload}
+          >
+            Download PDF
+          </button>
         </div>
       )}
       
-      {/* Page indicator */}
+      {/* Page indicator and download button */}
       {(numPages > 0 && !error && !isLoading) && (
-        <div className="pdf-page-indicator">
-          Page {currentPage} of {numPages}
-        </div>
+        <>
+          <div className="pdf-page-indicator">
+            Page {currentPage} of {numPages}
+          </div>
+          
+          <div className="absolute top-4 right-4 z-10">
+            <button
+              onClick={handleDownload}
+              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 text-sm text-gray-700"
+              title="Download PDF"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Download
+            </button>
+          </div>
+        </>
       )}
     </div>
   );
