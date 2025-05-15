@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { InternalDocument } from '../../types';
 import DownloadButton from './components/DownloadButton';
 import SourceButton from './components/SourceButton';
 import SheetSelector from './components/SheetSelector';
+import SpreadsheetSearch from './components/SpreadsheetSearch';
 
 interface SpreadsheetViewerProps {
   sasUrl: string;
@@ -11,6 +12,14 @@ interface SpreadsheetViewerProps {
   style?: React.CSSProperties;
   zoomLevel?: number;
   document?: InternalDocument; // Properly typed document prop
+}
+
+// Search-related interfaces
+interface SearchMatch {
+  sheetName: string;
+  rowIndex: number;
+  rowData: any[];
+  cellIndex?: number;
 }
 
 // Helper function to extract domain from URL
@@ -93,6 +102,12 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
   const [activeSheet, setActiveSheet] = useState<string | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
   const [currentZoom, setCurrentZoom] = useState(zoomLevel);
+  
+  // Search-related state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([]);
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(-1);
   
   // Extract webpage URL from document metadata if available
   const webpageUrl = document?.metadata?.webpageUrl || null;
@@ -200,8 +215,16 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
         (header as HTMLElement).style.backgroundColor = '#f5f5f5';
         (header as HTMLElement).style.fontWeight = 'bold';
       });
+      
+      // Apply highlighting to search matches if we're on the active sheet
+      if (searchMatches.length > 0 && currentMatchIndex !== -1) {
+        // Add a small delay to ensure the table is fully rendered
+        setTimeout(() => {
+          highlightCurrentMatch();
+        }, 50);
+      }
     }
-  }, [workbook, activeSheet, currentZoom]);
+  }, [workbook, activeSheet, currentZoom, currentMatchIndex, searchMatches]);
 
   const handleOpenInNewWindow = () => {
     window.open(sasUrl, '_blank');
@@ -254,6 +277,234 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
       />
     );
   };
+  
+  // Search functionality
+  const toggleSearch = () => {
+    setIsSearchOpen(!isSearchOpen);
+  };
+  
+  const closeSearch = () => {
+    setIsSearchOpen(false);
+  };
+  
+  // Regular function declarations for search functionality
+  function navigateToMatch(match: SearchMatch) {
+    // Switch to the sheet if needed
+    if (activeSheet !== match.sheetName) {
+      setActiveSheet(match.sheetName);
+      // When switching sheets, we'll rely on the effect that runs after sheet changes
+      // to trigger the highlighting
+    } else {
+      // If already on the correct sheet, just highlight the match
+      highlightCurrentMatch();
+    }
+  }
+
+  function navigateToNextMatch() {
+    if (searchMatches.length === 0) return;
+    
+    const nextIndex = (currentMatchIndex + 1) % searchMatches.length;
+    setCurrentMatchIndex(nextIndex);
+    navigateToMatch(searchMatches[nextIndex]);
+  }
+
+  function navigateToPreviousMatch() {
+    if (searchMatches.length === 0) return;
+    
+    const prevIndex = (currentMatchIndex - 1 + searchMatches.length) % searchMatches.length;
+    setCurrentMatchIndex(prevIndex);
+    navigateToMatch(searchMatches[prevIndex]);
+  }
+
+  // Search execution function
+  const performSearch = useCallback(() => {
+    if (!workbook || !searchQuery.trim()) {
+      setSearchMatches([]);
+      setCurrentMatchIndex(-1);
+      return;
+    }
+    
+    // Normalize the search query
+    const query = searchQuery.toLowerCase().trim();
+    
+    // Handle number format variations
+    let searchTerms = [query];
+    
+    // Check if the query could be a number (strip any non-digit characters except minus sign)
+    const cleanQuery = query.replace(/[^\d-]/g, '');
+    if (/^-?\d+$/.test(cleanQuery)) {
+      const num = parseInt(cleanQuery, 10);
+      const absNum = Math.abs(num);
+      
+      // Add number format variations
+      searchTerms = [
+        query,                              // Original query
+        String(absNum),                     // Plain number without separators
+        absNum.toLocaleString('en-US'),     // With commas (e.g., 1,234)
+        absNum.toLocaleString('en-US').replace(/,/g, '.'), // With periods (e.g., 1.234)
+        `(${absNum})`,                      // Negative format with parentheses (123)
+        `(${absNum.toLocaleString('en-US')})` // Negative with commas and parentheses (1,234)
+      ];
+      
+      // Make all search terms lowercase
+      searchTerms = searchTerms.map(term => term.toLowerCase());
+    }
+    
+    const matches: SearchMatch[] = [];
+    
+    // Search through all valid sheets
+    validSheets.forEach(sheetName => {
+      const worksheet = workbook.Sheets[sheetName];
+      if (!isValidSheet(worksheet)) return;
+      
+      // Convert sheet to JSON to make it easier to search
+      const jsonData = XLSX.utils.sheet_to_json<any>(worksheet, { header: 1 });
+      
+      // Search each row
+      jsonData.forEach((row: any[], rowIndex: number) => {
+        // Skip empty rows
+        if (!row || row.length === 0) return;
+        
+        // Check if any cell in this row contains the search query
+        const hasMatch = row.some(cell => {
+          if (cell === null || cell === undefined) return false;
+          
+          // Convert cell to string and normalize
+          const cellStr = String(cell).toLowerCase();
+          
+          // For numerical cells, check against all number format variations
+          if (typeof cell === 'number' || !isNaN(Number(cell))) {
+            return searchTerms.some(term => cellStr.includes(term));
+          }
+          
+          // For text cells, just check the original query
+          return cellStr.includes(query);
+        });
+        
+        if (hasMatch) {
+          matches.push({
+            sheetName,
+            rowIndex,
+            rowData: row
+          });
+        }
+      });
+    });
+    
+    console.log(`Found ${matches.length} rows containing the search term`);
+    
+    setSearchMatches(matches);
+    // Reset the current match index or set to the first match
+    setCurrentMatchIndex(matches.length > 0 ? 0 : -1);
+    
+    // If we have matches, navigate to the first one
+    if (matches.length > 0) {
+      navigateToMatch(matches[0]);
+    }
+  }, [workbook, searchQuery, validSheets]);
+  
+  // Simplified highlight function
+  function highlightCurrentMatch() {
+    if (currentMatchIndex === -1 || searchMatches.length === 0 || !tableRef.current) return;
+    
+    const match = searchMatches[currentMatchIndex];
+    
+    // Only highlight if we're on the correct sheet
+    if (match.sheetName !== activeSheet) return;
+    
+    const table = window.document.getElementById('spreadsheet-table');
+    if (!table) return;
+    
+    // Clear any previous highlights
+    const allRows = table.querySelectorAll('tr');
+    allRows.forEach(row => {
+      row.classList.remove('search-highlight');
+      const cells = row.querySelectorAll('td');
+      cells.forEach(cell => {
+        (cell as HTMLElement).style.backgroundColor = '';
+      });
+    });
+    
+    // Find the matching row by index
+    let targetRow: HTMLElement | null = null;
+    
+    // Add potential offsets to handle header rows
+    const possibleRowIndices = [match.rowIndex, match.rowIndex + 1, match.rowIndex + 2];
+    
+    for (const rowIndex of possibleRowIndices) {
+      if (rowIndex >= 0 && rowIndex < allRows.length) {
+        targetRow = allRows[rowIndex] as HTMLElement;
+        
+        // Simple verification - basic check if row is empty
+        const rowCells = targetRow.querySelectorAll('td');
+        if (rowCells.length === 0) continue;
+        
+        // Check if this row contains any content
+        const hasContent = Array.from(rowCells).some(cell => 
+          cell.textContent && cell.textContent.trim() !== ''
+        );
+        
+        if (hasContent) {
+          break; // We found a non-empty row at this index
+        }
+      }
+    }
+    
+    // If we couldn't find a row by index, fall back to searching by content
+    if (!targetRow) {
+      // Prepare number format variations for the search query
+      let searchTerms = [searchQuery.toLowerCase()];
+      
+      // Check if the query could be a number
+      const cleanQuery = searchQuery.toLowerCase().replace(/[^\d-]/g, '');
+      if (/^-?\d+$/.test(cleanQuery)) {
+        const num = parseInt(cleanQuery, 10);
+        const absNum = Math.abs(num);
+        
+        // Add number format variations
+        searchTerms = [
+          searchQuery.toLowerCase(),
+          String(absNum),
+          absNum.toLocaleString('en-US').toLowerCase(),
+          absNum.toLocaleString('en-US').replace(/,/g, '.').toLowerCase(),
+          `(${absNum})`.toLowerCase(),
+          `(${absNum.toLocaleString('en-US')})`.toLowerCase()
+        ];
+      }
+      
+      // Search content with all possible formats
+      for (let i = 0; i < allRows.length; i++) {
+        const row = allRows[i] as HTMLElement;
+        const rowText = row.textContent?.toLowerCase() || '';
+        
+        // Check if the row contains any of our search terms
+        const hasMatch = searchTerms.some(term => rowText.includes(term));
+        if (hasMatch) {
+          targetRow = row;
+          break;
+        }
+      }
+    }
+    
+    // Highlight the found row
+    if (targetRow) {
+      // Add highlight class
+      targetRow.classList.add('search-highlight');
+      
+      // Apply highlight style
+      const cells = targetRow.querySelectorAll('td');
+      cells.forEach(cell => {
+        (cell as HTMLElement).style.backgroundColor = '#FFEB3B50'; // Yellow with 50% opacity
+      });
+      
+      // Scroll the row into view
+      targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      console.log(`Highlighted row with match: ${currentMatchIndex + 1} of ${searchMatches.length}`);
+    } else {
+      console.warn(`Could not find row to highlight for match: ${currentMatchIndex + 1} of ${searchMatches.length}`);
+    }
+  }
 
   // If not in browser, return a placeholder
   if (!isBrowser) {
@@ -386,7 +637,8 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
           padding: '16px',
           backgroundColor: '#ffffff',
           borderRadius: '4px',
-          overflow: 'auto'
+          overflow: 'auto',
+          position: 'relative',
         }}
       >
         <div style={{
@@ -416,6 +668,36 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
             flex: 1
           }}
         />
+        
+        {/* Search panel - positioned at bottom left */}
+        <div style={{
+          position: 'absolute',
+          bottom: '16px',
+          left: '16px',
+          zIndex: 10
+        }}>
+          <SpreadsheetSearch 
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onSearch={performSearch}
+            onPrevious={navigateToPreviousMatch}
+            onNext={navigateToNextMatch}
+            onClose={closeSearch}
+            matchCount={searchMatches.length}
+            currentMatchIndex={currentMatchIndex}
+            isOpen={isSearchOpen}
+            onToggle={toggleSearch}
+          />
+        </div>
+        
+        {/* Add CSS for search highlighting */}
+        <style>
+          {`
+            .search-highlight {
+              transition: background-color 0.2s ease;
+            }
+          `}
+        </style>
       </div>
     );
   }
