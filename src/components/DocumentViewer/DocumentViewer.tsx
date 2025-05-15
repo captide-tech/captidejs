@@ -12,6 +12,80 @@ import HTMLViewer from './HTMLViewer';
 const PDFViewer = dynamicImport(() => import('./PDFViewer'), { ssr: false });
 const SpreadsheetViewer = dynamicImport(() => import('./SpreadsheetViewer'), { ssr: false });
 
+// Simple Zoom Controls Component
+const ZoomControls: React.FC<{
+  zoomIn: () => void;
+  zoomOut: () => void;
+}> = ({ zoomIn, zoomOut }) => {
+  return (
+    <div 
+      className="bg-white flex items-center"
+      style={{
+        padding: '1px',
+        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+        border: '1px solid #cbd5e1',
+        borderRadius: '4px',
+        position: 'absolute',
+        bottom: '15px',
+        right: '14px',
+        zIndex: 10,
+        height: '32px' // Match SpreadsheetSearch height
+      }}
+    >
+      <button
+        onClick={zoomOut}
+        aria-label="Zoom out"
+        style={{
+          fontSize: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: '3px',
+          cursor: 'pointer',
+          padding: '4px',
+          backgroundColor: '#f1f5f9',
+          color: '#475569',
+          border: '1px solid #cbd5e1',
+          height: '26px',
+          width: '26px',
+          minWidth: '26px',
+          margin: '2px'
+        }}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+      </button>
+      
+      <button
+        onClick={zoomIn}
+        aria-label="Zoom in"
+        style={{
+          fontSize: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: '3px',
+          cursor: 'pointer',
+          padding: '4px',
+          backgroundColor: '#f1f5f9',
+          color: '#475569',
+          border: '1px solid #cbd5e1',
+          height: '26px',
+          width: '26px',
+          minWidth: '26px',
+          margin: '2px'
+        }}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+      </button>
+    </div>
+  );
+};
+
 /**
  * DocumentViewer Component
  * 
@@ -195,8 +269,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         enableShareableLinks={enableShareableLinks}
         shareableLinkBaseUrl={shareableLinkBaseUrl}
         shareableLinkButtonColor={shareableLinkButtonColor}
-            viewerRoutePath={viewerRoutePath}
-          />
+        viewerRoutePath={viewerRoutePath}
+      />
     );
   };
 
@@ -214,98 +288,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     >
       {renderAppropriateViewer()}
       
-      {/* Zoom controls UI */}
+      {/* Simplified Zoom controls UI */}
       {showZoomControls && (
-        <div className="absolute bottom-4 right-4 bg-white flex items-center"
-          style={{
-            padding: '3px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-            border: '1px solid #e2e8f0',
-            borderRadius: '6px'
-          }}
-        >
-          <button
-            onClick={zoomOut}
-            className="p-2 hover:bg-gray-100 text-gray-600"
-            aria-label="Zoom out"
-            style={{
-              fontSize: '13px',
-              transition: 'background-color 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: '4px',
-              margin: '0 1px',
-              cursor: 'pointer',
-              padding: '6px'
-            }}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              <line x1="8" y1="11" x2="14" y2="11"></line>
-            </svg>
-          </button>
-          
-          <button
-            onClick={zoomIn}
-            className="p-2 hover:bg-gray-100 text-gray-600"
-            aria-label="Zoom in"
-            style={{
-              fontSize: '13px',
-              transition: 'background-color 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: '4px',
-              margin: '0 1px',
-              cursor: 'pointer',
-              padding: '6px'
-            }}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              <line x1="11" y1="8" x2="11" y2="14"></line>
-              <line x1="8" y1="11" x2="14" y2="11"></line>
-            </svg>
-          </button>
-          
-          <div style={{
-            width: '64px', 
-            textAlign: 'center',
-            fontSize: '13px',
-            fontWeight: '500',
-            color: '#4b5563',
-            padding: '0 4px'
-          }}>
-            {Math.round(zoomLevel * 100)}%
-          </div>
-          
-          <button
-            onClick={resetZoom}
-            className="p-2 hover:bg-gray-100 text-gray-600"
-            aria-label="Reset zoom"
-            style={{
-              fontSize: '13px',
-              transition: 'background-color 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: '4px',
-              margin: '0 1px',
-              cursor: 'pointer',
-              padding: '6px'
-            }}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-              <path d="M3 3v5h5"></path>
-              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
-              <path d="M16 16h5v5"></path>
-            </svg>
-          </button>
-        </div>
+        <ZoomControls zoomIn={zoomIn} zoomOut={zoomOut} />
       )}
     </div>
   );

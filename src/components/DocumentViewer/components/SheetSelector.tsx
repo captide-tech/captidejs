@@ -29,13 +29,12 @@ const SheetSelector: React.FC<SheetSelectorProps> = ({
     padding: '6px 12px',
     borderRadius: '4px',
     cursor: 'pointer',
-    fontWeight: 'bold',
+    fontWeight: 'normal',
     display: 'flex',
     alignItems: 'center',
     gap: '4px',
     boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
-    transition: 'background-color 0.2s ease',
-    fontSize: '12px',
+    fontSize: '13px',
     backgroundColor: '#f1f5f9',
     color: '#475569',
     border: '1px solid #cbd5e1',
@@ -99,15 +98,6 @@ const SheetSelector: React.FC<SheetSelectorProps> = ({
     }
   `;
   
-  // Handle hover states
-  const handleMouseOver = (e: React.MouseEvent<HTMLDivElement>) => {
-    e.currentTarget.style.backgroundColor = '#e2e8f0';
-  };
-  
-  const handleMouseOut = (e: React.MouseEvent<HTMLDivElement>) => {
-    e.currentTarget.style.backgroundColor = '#f1f5f9';
-  };
-  
   // Handle click on the entire component
   const handleContainerClick = () => {
     if (selectRef.current) {
@@ -122,8 +112,6 @@ const SheetSelector: React.FC<SheetSelectorProps> = ({
       <div 
         className={`spreadsheet-select-container ${className}`}
         style={baseStyle}
-        onMouseOver={handleMouseOver}
-        onMouseOut={handleMouseOut}
         onClick={handleContainerClick}
       >
         {/* Spreadsheet icon */}

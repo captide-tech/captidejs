@@ -98,41 +98,44 @@ const SpreadsheetSearch: React.FC<SpreadsheetSearchProps> = ({
   
   // Styles for the components
   const buttonStyle: React.CSSProperties = {
-    padding: '6px 12px',
+    padding: '6px 10px',
     borderRadius: '4px',
     display: 'flex',
     alignItems: 'center',
     gap: '4px',
-    fontSize: '12px',
+    fontSize: '13px',
     backgroundColor: '#f1f5f9',
     color: '#475569',
     border: '1px solid #cbd5e1',
     height: '32px',
+    minWidth: '70px',
     cursor: 'pointer',
     boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
-    fontWeight: 'bold',
+    fontWeight: 'normal',
     transition: 'background-color 0.15s ease',
   };
   
   const searchBarStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
+    gap: '5px',
     backgroundColor: '#f1f5f9',
-    padding: '0 8px',
+    padding: '0 6px',
     borderRadius: '4px',
     border: '1px solid #cbd5e1',
     height: '32px',
     boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
-    minWidth: '300px', // Ensure minimum width for better usability
+    maxWidth: '100%',
+    width: 'auto',
   };
   
   const inputStyle: React.CSSProperties = {
     border: 'none',
     backgroundColor: 'transparent',
     outline: 'none',
-    fontSize: '12px',
-    width: '150px',
+    fontSize: '13px',
+    width: '100px',
+    maxWidth: '100%',
     color: '#333',
   };
   
@@ -148,6 +151,8 @@ const SpreadsheetSearch: React.FC<SpreadsheetSearchProps> = ({
     color: '#64748b',
     borderRadius: '3px',
     transition: 'all 0.15s ease',
+    minWidth: '24px',
+    height: '24px',
   });
   
   const closeButtonStyle: React.CSSProperties = {
@@ -162,6 +167,8 @@ const SpreadsheetSearch: React.FC<SpreadsheetSearchProps> = ({
     opacity: 0.7,
     borderRadius: '3px',
     transition: 'all 0.15s ease',
+    minWidth: '24px',
+    height: '24px',
   };
   
   // Custom CSS to remove focus ring and add hover effects
@@ -194,6 +201,17 @@ const SpreadsheetSearch: React.FC<SpreadsheetSearchProps> = ({
     
     .search-has-results {
       animation: pulse 2s ease-in-out 1;
+    }
+
+    /* Media query for small screens */
+    @media (max-width: 640px) {
+      .spreadsheet-search-bar {
+        max-width: 180px;
+      }
+      
+      .spreadsheet-search-input {
+        width: 70px !important;
+      }
     }
   `;
   
@@ -231,7 +249,7 @@ const SpreadsheetSearch: React.FC<SpreadsheetSearchProps> = ({
       <style>{customCSS}</style>
       <div 
         style={searchBarStyle} 
-        className={matchCount > 0 ? 'search-has-results' : ''}
+        className={`spreadsheet-search-bar ${matchCount > 0 ? 'search-has-results' : ''}`}
       >
         <svg 
           xmlns="http://www.w3.org/2000/svg" 
@@ -243,7 +261,7 @@ const SpreadsheetSearch: React.FC<SpreadsheetSearchProps> = ({
           strokeWidth="2" 
           strokeLinecap="round" 
           strokeLinejoin="round"
-          style={{ color: '#475569' }}
+          style={{ color: '#475569', flexShrink: 0 }}
         >
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
@@ -264,15 +282,16 @@ const SpreadsheetSearch: React.FC<SpreadsheetSearchProps> = ({
         <div style={{ 
           color: '#64748b', 
           fontSize: '11px',
-          minWidth: '60px',
-          textAlign: 'right'
+          minWidth: '45px',
+          textAlign: 'center',
+          flexShrink: 0
         }}>
           {matchCount > 0 ? 
             `${currentMatchIndex + 1}/${matchCount}` : 
             ''}
         </div>
         
-        <div style={{ display: 'flex', gap: '4px' }}>
+        <div style={{ display: 'flex', gap: '1px', flexShrink: 0 }}>
           <button
             onClick={onPrevious}
             disabled={matchCount === 0}
@@ -284,8 +303,8 @@ const SpreadsheetSearch: React.FC<SpreadsheetSearchProps> = ({
           >
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
-              width="16" 
-              height="16" 
+              width="14" 
+              height="14" 
               viewBox="0 0 24 24" 
               fill="none" 
               stroke="currentColor" 
@@ -308,8 +327,8 @@ const SpreadsheetSearch: React.FC<SpreadsheetSearchProps> = ({
           >
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
-              width="16" 
-              height="16" 
+              width="14" 
+              height="14" 
               viewBox="0 0 24 24" 
               fill="none" 
               stroke="currentColor" 
@@ -331,8 +350,8 @@ const SpreadsheetSearch: React.FC<SpreadsheetSearchProps> = ({
         >
           <svg 
             xmlns="http://www.w3.org/2000/svg" 
-            width="16" 
-            height="16" 
+            width="14" 
+            height="14" 
             viewBox="0 0 24 24" 
             fill="none" 
             stroke="currentColor" 

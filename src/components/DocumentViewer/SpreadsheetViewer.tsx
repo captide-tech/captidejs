@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { InternalDocument } from '../../types';
-import DownloadButton from './components/DownloadButton';
-import SourceButton from './components/SourceButton';
 import SheetSelector from './components/SheetSelector';
 import SpreadsheetSearch from './components/SpreadsheetSearch';
 
@@ -22,6 +20,19 @@ interface SearchMatch {
   cellIndex?: number;
 }
 
+// Update the interface definitions for button components
+interface DownloadButtonProps {
+  onClick: () => void;
+  primary?: boolean;
+  minWidth?: number;
+}
+
+interface SourceButtonProps {
+  onClick: () => void;
+  domain: string;
+  minWidth?: number;
+}
+
 // Helper function to extract domain from URL
 const extractDomain = (url: string): string => {
   try {
@@ -33,6 +44,85 @@ const extractDomain = (url: string): string => {
     return 'website';
   }
 };
+
+// Button component definitions
+const DownloadButton: React.FC<DownloadButtonProps> = ({ onClick, primary = false, minWidth = 90 }) => (
+  <button
+    onClick={onClick}
+    style={{
+      padding: '6px 12px',
+      borderRadius: '4px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      fontSize: '13px',
+      backgroundColor: primary ? '#3b82f6' : '#f1f5f9',
+      color: primary ? 'white' : '#475569',
+      border: '1px solid',
+      borderColor: primary ? '#2563eb' : '#cbd5e1',
+      height: '32px',
+      minWidth: `${minWidth}px`, // Ensure minimum button width
+      cursor: 'pointer',
+      boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+      fontWeight: primary ? 'bold' : 'normal'
+    }}
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+      <polyline points="7 10 12 15 17 10"></polyline>
+      <line x1="12" y1="15" x2="12" y2="3"></line>
+    </svg>
+    Download
+  </button>
+);
+
+const SourceButton: React.FC<SourceButtonProps> = ({ onClick, domain, minWidth = 90 }) => (
+  <button
+    onClick={onClick}
+    style={{
+      padding: '6px 12px',
+      borderRadius: '4px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      fontSize: '13px',
+      backgroundColor: '#f1f5f9',
+      color: '#475569',
+      border: '1px solid #cbd5e1',
+      height: '32px',
+      minWidth: `${minWidth}px`, // Ensure minimum button width
+      cursor: 'pointer',
+      boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+    }}
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="10"></circle>
+      <line x1="2" y1="12" x2="22" y2="12"></line>
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+    </svg>
+    Source
+  </button>
+);
 
 // Simple placeholder component for non-browser environments
 const SpreadsheetPlaceholder: React.FC<{className?: string; style?: React.CSSProperties}> = ({
@@ -634,47 +724,73 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
           ...style,
           display: 'flex',
           flexDirection: 'column',
-          padding: '16px',
+          padding: '0', // Remove padding to allow content to fill the space
           backgroundColor: '#ffffff',
           borderRadius: '4px',
-          overflow: 'auto',
+          overflow: 'hidden', // Change to hidden to ensure proper layout
           position: 'relative',
         }}
       >
+        {/* Header area with controls - position absolute to float above content */}
         <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 10,
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '16px'
+          flexWrap: 'wrap',
+          gap: '8px',
+          padding: '16px', // Add padding to the header
+          backgroundColor: 'transparent', // Fully transparent background
+          backdropFilter: 'none', // Remove blur effect
         }}>
-          {renderSheetSelector()}
+          <div style={{ 
+            minWidth: '120px',
+            marginRight: '8px'
+          }}>
+            {renderSheetSelector()}
+          </div>
           
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ 
+            display: 'flex', 
+            gap: '8px',
+            marginLeft: 'auto'
+          }}>
             {webpageUrl && (
               <SourceButton
                 onClick={handleOpenSourceWebpage}
                 domain={extractDomain(webpageUrl)}
+                minWidth={90}
               />
             )}
           
-            <DownloadButton onClick={handleDownload} />
+            <DownloadButton 
+              onClick={handleDownload}
+              minWidth={90}
+            />
           </div>
         </div>
         
+        {/* Main content - add top padding to make room for the header */}
         <div 
           ref={tableRef}
           style={{
             overflow: 'auto',
-            flex: 1
+            flex: 1,
+            paddingTop: '64px', // Add padding to ensure content starts below the header
+            paddingLeft: '16px', // Add left padding
           }}
         />
         
-        {/* Search panel - positioned at bottom left */}
+        {/* Search panel - positioned at bottom left with responsive positioning */}
         <div style={{
           position: 'absolute',
           bottom: '16px',
           left: '16px',
-          zIndex: 10
+          zIndex: 5
         }}>
           <SpreadsheetSearch 
             searchQuery={searchQuery}
@@ -690,7 +806,7 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
           />
         </div>
         
-        {/* Add CSS for search highlighting */}
+        {/* Add CSS for search highlighting and any other needed styles */}
         <style>
           {`
             .search-highlight {
