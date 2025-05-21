@@ -31,5 +31,6 @@ export const extractPageNumberFromElementId = (elementId: string | null): number
  * @returns Whether the document is a proxy statement
  */
 export const isProxyStatement = (sourceType: string): boolean => {
-  return ['DEF 14A', 'DEFM14A', 'DEF 14C', 'DEFM14C'].includes(sourceType);
+  const normalizedType = sourceType.toUpperCase();
+  return ['DEF 14A', 'DEFM14A', 'DEF 14C', 'DEFM14C'].includes(normalizedType);
 }; 

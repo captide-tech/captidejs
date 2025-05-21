@@ -17,7 +17,7 @@ export const handlePageBasedDocumentLoad = (
   if (!iframeDocument || !iframeWindow) return;
 
   // For 8-K and DEF 14A documents, we need to highlight the correct page
-  if ((document.sourceType === '8-K' || isProxyStatement(document.sourceType)) && highlightedElementId) {
+  if ((document.sourceType.toUpperCase() === '8-K' || isProxyStatement(document.sourceType)) && highlightedElementId) {
     // Extract page number from elementId
     const pageNumber = extractPageNumberFromElementId(highlightedElementId);
     
@@ -343,7 +343,7 @@ export const handleStandardDocumentHighlight = (
         
         // Enhanced highlighting: find elements between matching unique-id spans
         // This ensures continuity in highlighting for 10-K and 10-Q documents
-        if (document.sourceType === '10-K' || document.sourceType === '10-Q') {
+        if (document.sourceType.toUpperCase() === '10-K' || document.sourceType.toUpperCase() === '10-Q') {
           const elementsArray = Array.from(elementsToHighlight);
           
           if (elementsArray.length > 0) {
@@ -422,9 +422,9 @@ export const handleElementScrolling = (
   sourceType: string,
   isNewDocument: boolean
 ): void => {
-  if (sourceType === 'transcript') {
+  if (sourceType.toLowerCase() === 'transcript') {
     handleTranscriptScrolling(iframe, scrollTarget, isNewDocument);
-  } else if (sourceType === '10-K' || sourceType === '10-Q') {
+  } else if (sourceType.toUpperCase() === '10-K' || sourceType.toUpperCase() === '10-Q') {
     handle10KScrolling(iframe, scrollTarget, isNewDocument);
   } else {
     // For other filings, use the original approach with improvements

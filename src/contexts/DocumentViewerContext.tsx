@@ -20,7 +20,7 @@ const VALID_SOURCE_TYPES: SourceType[] = [
 ];
 
 // DIAGNOSTIC CODE: This will log as soon as this module is imported
-console.log('[DIAGNOSTIC] DocumentViewerContext module loaded - version 0.1.20', {
+console.log('[DIAGNOSTIC] DocumentViewerContext module loaded - version 0.1.21', {
   validSourceTypes: VALID_SOURCE_TYPES
 });
 

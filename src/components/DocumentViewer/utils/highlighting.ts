@@ -88,7 +88,7 @@ export const findBestScrollTarget = (elements: NodeListOf<Element>, sourceType: 
   const elementsArray = Array.from(elements);
 
   // For transcript documents, prioritize certain element types
-  if (sourceType === 'transcript') {
+  if (sourceType.toLowerCase() === 'transcript') {
     // First, check if any highlighted element is within a paragraph with a speaker-name
     const speakerElements = elementsArray.filter(el => {
       // Check if this element or any parent has a speaker-name

@@ -178,29 +178,31 @@ export const processSlideDeckFormat = (html: string): string => {
  * Helper function to check if document is an international filing type
  */
 export const isInternationalFiling = (sourceType: string): boolean => {
-  return sourceType === '20-F' || sourceType === '40-F' || sourceType === '6-K' || sourceType === 'S-1';
+  const normalizedType = sourceType.toUpperCase();
+  return normalizedType === '20-F' || normalizedType === '40-F' || normalizedType === '6-K' || normalizedType === 'S-1';
 };
 
 /**
  * Helper function to check if document is a proxy statement
  */
 export const isProxyStatement = (sourceType: string): boolean => {
-  return sourceType === 'DEF 14A' || 
-         sourceType === 'DEFM14A' || 
-         sourceType === 'DEF 14C' || 
-         sourceType === 'DEFM14C';
+  const normalizedType = sourceType.toUpperCase();
+  return normalizedType === 'DEF 14A' || 
+         normalizedType === 'DEFM14A' || 
+         normalizedType === 'DEF 14C' || 
+         normalizedType === 'DEFM14C';
 };
 
 /**
  * Helper function to check if document is an IR document
  */
 export const isIRDocument = (sourceType: string): boolean => {
-  return sourceType === 'ir';
+  return sourceType.toLowerCase() === 'ir';
 };
 
 /**
  * Helper function to check if document is a binary document (PDF or Excel)
  */
 export const isBinaryDocument = (sourceType: string, fileType?: FileType): boolean => {
-  return sourceType === 'ir' && !!fileType && (fileType === 'pdf' || fileType === 'xlsx');
+  return sourceType.toLowerCase() === 'ir' && !!fileType && (fileType === 'pdf' || fileType === 'xlsx');
 }; 
