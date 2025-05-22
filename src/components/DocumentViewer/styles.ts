@@ -6,17 +6,30 @@ export const generateGeneralStyles = (zoomLevel: number): string => `
   html, body {
     transform-origin: top left;
     transform: scale(${zoomLevel});
-    width: 100%;
+    width: ${100 / zoomLevel}%;
     max-width: 100%;
     overflow-x: hidden;
     margin: 0;
     padding: 0;
+    background-color: white;
+  }
+  
+  /* Apply consistent width to direct children of body */
+  body > * {
+    width: 100% !important;
+    max-width: 100%;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    padding-left: 24px !important;
+    padding-right: 24px !important;
+    box-sizing: border-box !important;
   }
   
   /* Allow natural wrapping while preventing horizontal overflow */
   body * {
     max-width: 100%;
     box-sizing: border-box;
+    font-size: 1.025em; /* Slightly increase text size */
   }
   
   /* Handle tables more naturally */
@@ -24,6 +37,8 @@ export const generateGeneralStyles = (zoomLevel: number): string => `
     max-width: 100%;
     table-layout: auto;
     width: auto;
+    margin-left: auto !important;
+    margin-right: auto !important;
   }
   
   /* Allow tables to wrap - less aggressive approach */
@@ -50,18 +65,6 @@ export const generateGeneralStyles = (zoomLevel: number): string => `
     height: auto;
   }
   
-  /* Special handling for pages in proxy statement documents */
-  .captide-page {
-    width: 100%;
-    max-width: 100%;
-    overflow-x: hidden;
-  }
-  
-  /* Only override inline widths that are too large */
-  [style*="width:"] {
-    max-width: 100%;
-  }
-  
   /* Highlighted elements */
   .highlighted {
     background-color: yellow !important;
@@ -69,21 +72,45 @@ export const generateGeneralStyles = (zoomLevel: number): string => `
   .highlighted * {
     background-color: transparent !important;
   }
+  
+  /* Make links visible */
+  a {
+    color: #2563eb;
+    text-decoration: underline;
+  }
 `;
 
 /**
  * Styles for 8-K and proxy statement documents
  */
 export const generatePageBasedDocumentStyles = (zoomLevel: number): string => `
+  /* Base container styles with consistent padding */
+  html, body {
+    transform-origin: top left;
+    transform: scale(${zoomLevel});
+    width: ${100 / zoomLevel}%;
+    overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+    background-color: white;
+  }
+  
+  /* Apply consistent width and padding to pages */
+  .page-container, .captide-page {
+    width: 100% !important;
+    max-width: 100%;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    margin-bottom: 10px;
+    padding: 16px !important;
+    box-sizing: border-box !important;
+    background-color: white;
+    border: 1px solid #ddd;
+  }
+  
   .page-highlighted {
     outline: 4px solid yellow;
     outline-offset: -4px;
-  }
-  .page-container {
-    margin-bottom: 10px;
-    padding: 10px;
-    border: 1px solid #ddd;
-    background-color: white;
   }
   
   /* Styles for proxy statement documents with captide-page markers */
@@ -91,35 +118,31 @@ export const generatePageBasedDocumentStyles = (zoomLevel: number): string => `
     outline: 4px solid yellow;
     outline-offset: -4px;
   }
-  .captide-page {
-    margin-bottom: 10px;
-    padding: 10px;
-    background-color: white;
-    position: relative;
-  }
-  
-  /* Responsive layout styles */
-  body {
-    transform-origin: top left;
-    transform: scale(${zoomLevel});
-    width: ${100 / zoomLevel}%;
-    overflow-x: auto;
-  }
   
   /* Improve table rendering */
   table {
     max-width: 100%;
     table-layout: auto;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+  
+  /* Highlighted elements */
+  .highlighted {
+    background-color: yellow !important;
+  }
+  
+  .highlighted * {
+    background-color: transparent !important;
   }
 `;
 
 /**
  * Styles for international filings (20-F, 40-F, 6-K, S-1)
- * Modified to be much less invasive and preserve original document formatting
  */
 export const generateInternationalFilingStyles = (zoomLevel: number): string => `
-  /* Only apply minimal necessary styling for international filings */
-  body {
+  /* Base container styles */
+  html, body {
     transform-origin: top left;
     transform: scale(${zoomLevel});
     width: ${100 / zoomLevel}%;
@@ -128,11 +151,16 @@ export const generateInternationalFilingStyles = (zoomLevel: number): string => 
     background-color: white;
   }
   
-  /* Prevent page overlapping issues for XBRL documents */
+  /* Center content with consistent width */
   body > div {
+    width: 100% !important;
+    max-width: 100%;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    box-sizing: border-box !important;
     position: relative !important;
-    page-break-after: always;
-    margin-bottom: 20px;
   }
   
   /* Force page content to have proper height and position */
@@ -151,7 +179,8 @@ export const generateInternationalFilingStyles = (zoomLevel: number): string => 
   /* Apply typical page sizes for US Letter and A4 */
   div[style*="width: 612pt"],
   div[style*="width:612pt"] {
-    width: 612pt;
+    width: 100% !important;
+    max-width: 100%;
     margin-left: auto;
     margin-right: auto;
   }
@@ -177,9 +206,9 @@ export const generateInternationalFilingStyles = (zoomLevel: number): string => 
     max-width: 100%;
   }
   
-  /* Preserve all original styles */
+  /* Preserve original styles while maintaining max-width */
   [style] {
-    max-width: none !important;
+    max-width: 100% !important;
   }
   
   /* Ensure nested highlighted elements work properly */
@@ -247,8 +276,73 @@ export const generateShareableLinkButtonStyles = (buttonColor: string): string =
 `;
 
 /**
+ * Specific styles for 10-K and 10-Q financial filings
+ */
+export const generateFinancialFilingStyles = (zoomLevel: number): string => `
+  /* Base container styles */
+  html, body {
+    transform-origin: top left;
+    transform: scale(${zoomLevel});
+    width: ${100 / zoomLevel}%;
+    overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+    background-color: white;
+  }
+  
+  /* Apply consistent width to direct children of body */
+  body > * {
+    width: 100% !important;
+    max-width: 100%;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    box-sizing: border-box !important;
+  }
+  
+  /* Ensure tables are displayed properly */
+  table {
+    max-width: 100%;
+    table-layout: auto;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+  
+  /* Financial tables should be handled specially */
+  .financial-table, 
+  .ix_hidden, 
+  .previewer-table,
+  table[class*="table"],
+  div[class*="table"] {
+    width: auto !important;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  
+  /* For numeric data columns, preserve formatting */
+  td[align="right"], th[align="right"] {
+    white-space: nowrap;
+    text-align: right;
+  }
+  
+  /* Highlighted elements */
+  .highlighted {
+    background-color: yellow !important;
+  }
+  
+  .highlighted * {
+    background-color: transparent !important;
+  }
+  
+  /* Remove any unwanted margins/padding */
+  body p, body div, body section, body article {
+    max-width: 100%;
+  }
+`;
+
+/**
  * Base HTML template for the iframe
- * Modified to preserve original document structure and styles
  */
 export const getBaseHtmlTemplate = (htmlContent: string): string => `
   <html>
@@ -260,6 +354,7 @@ export const getBaseHtmlTemplate = (htmlContent: string): string => `
           padding: 0;
           width: 100%;
           height: auto;
+          background-color: white;
         }
         
         /* Highlighted elements basic styling */
@@ -275,34 +370,20 @@ export const getBaseHtmlTemplate = (htmlContent: string): string => `
         window.addEventListener('resize', function() {
           // Force reflow calculation
           document.body.style.height = 'auto';
-          // Small delay to ensure content has reflowed
-          setTimeout(function() {
-            // Inform parent of new height if needed
-            if (window.parent && window.parent !== window) {
-              const height = document.body.scrollHeight;
-              window.parent.postMessage({ type: 'resize', height: height }, '*');
-            }
-          }, 100);
+          // Inform parent of new height if needed
+          if (window.parent && window.parent !== window) {
+            const height = document.body.scrollHeight;
+            window.parent.postMessage({ type: 'resize', height: height }, '*');
+          }
         });
         
-        // Monitor mutations to handle dynamically loaded content
-        window.addEventListener('load', function() {
-          if (window.MutationObserver) {
-            var observer = new MutationObserver(function(mutations) {
-              // If content changes, update parent about new size
-              if (window.parent && window.parent !== window) {
-                const height = document.body.scrollHeight;
-                window.parent.postMessage({ type: 'resize', height: height }, '*');
-              }
-            });
-            
-            // Observe changes to the body and its descendants
-            observer.observe(document.body, { 
-              childList: true, 
-              subtree: true,
-              attributes: true,
-              characterData: true
-            });
+        // Initialize height after content is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+          if (window.parent && window.parent !== window) {
+            setTimeout(function() {
+              const height = document.body.scrollHeight;
+              window.parent.postMessage({ type: 'resize', height: height }, '*');
+            }, 200);
           }
         });
       </script>

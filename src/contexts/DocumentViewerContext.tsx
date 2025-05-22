@@ -19,11 +19,6 @@ const VALID_SOURCE_TYPES: SourceType[] = [
   'def 14c', 'defm14c', '20-f', '40-f', '6-k', 's-1', 'ir'
 ];
 
-// DIAGNOSTIC CODE: This will log as soon as this module is imported
-console.log('[DIAGNOSTIC] DocumentViewerContext module loaded - version 0.1.21', {
-  validSourceTypes: VALID_SOURCE_TYPES
-});
-
 // Initial state for the context
 const initialState: DocumentViewerState = {
   document: null,
@@ -31,7 +26,7 @@ const initialState: DocumentViewerState = {
   isLoading: false,
   isOpen: false,
   tabs: [],
-  zoomLevel: 0.8
+  zoomLevel: 1.0
 };
 
 // Create context with a meaningful initial undefined value to detect improper usage
@@ -59,7 +54,6 @@ function extractSourceTypeFromUrl(sourceLink: string): SourceType {
     const sourceTypeParam = url.searchParams.get('sourceType');
     
     if (!sourceTypeParam) {
-      console.warn(`Missing sourceType parameter in sourceLink: ${sourceLink}, defaulting to "ir"`);
       return 'ir'; // Default to ir if not specified
     }
     
@@ -71,13 +65,10 @@ function extractSourceTypeFromUrl(sourceLink: string): SourceType {
       return normalizedSourceType as SourceType;
     }
     
-    // If not valid, log a warning and return a default type
-    console.warn(`Invalid sourceType parameter in sourceLink: ${sourceTypeParam}, defaulting to "ir"`);
+    // If not valid, return a default type
     return 'ir';
   } catch (e) {
     // Add more context to the error
-    const error = e instanceof Error ? e : new Error(String(e));
-    console.error(`Failed to parse sourceLink URL: ${sourceLink}. ${error.message}`);
     return 'ir'; // Default to ir for error cases
   }
 }
@@ -109,34 +100,24 @@ function extractFileTypeFromUrl(sourceLink: string): FileType {
  * This function handles documents with SAS URLs
  */
 function convertToInternalDocument(document: SourceDocument, highlightedElementId: string | null = null): InternalDocument {
-  console.log('[DocumentViewerContext] Converting document to internal format:', document);
-  
   // Safety check for missing or malformed document
   if (!document || typeof document !== 'object') {
-    console.error('[DocumentViewerContext] Invalid document provided:', document);
     throw new Error('Invalid document provided to convertToInternalDocument');
   }
   
   // Detect if this is an object with a sasUrl property but missing other required properties
   // Add safeguards for malformed document objects
   if (!document.sourceType) {
-    console.warn('[DocumentViewerContext] Document missing sourceType - using default "ir"');
     (document as any).sourceType = 'ir';
   }
   
   if (!document.sourceLink) {
-    console.warn('[DocumentViewerContext] Document missing sourceLink');
     (document as any).sourceLink = 'unknown';
   }
   
   // Normalize sourceType to lowercase to handle case-insensitive matching
   // This ensures values like "IR" will be converted to "ir" to match our type definition
   const normalizedSourceType = ((document.sourceType || '') + '').toLowerCase() as SourceType;
-  
-  console.log('[DocumentViewerContext] Normalized sourceType:', { 
-    original: document.sourceType, 
-    normalized: normalizedSourceType 
-  });
   
   const normalizedDoc = {
     ...document,
@@ -145,17 +126,11 @@ function convertToInternalDocument(document: SourceDocument, highlightedElementI
   
   // Special case for documents with sasUrl (binary documents)
   if ((normalizedDoc as any).sasUrl) {
-    console.log('[DocumentViewerContext] Processing document with SAS URL:', (normalizedDoc as any).sasUrl.substring(0, 50) + '...');
-    
     // Ensure the SAS URL properly includes the signature and all parameters
     const sasUrl = (normalizedDoc as any).sasUrl;
     const hasValidSasParams = sasUrl && 
                              sasUrl.includes('sig=') && 
                              (sasUrl.includes('se=') || sasUrl.includes('sp='));
-    
-    if (!hasValidSasParams) {
-      console.warn('[DocumentViewerContext] SAS URL appears to be missing required parameters');
-    }
     
     const internalDoc = {
       sourceLink: normalizedDoc.sourceLink,
@@ -179,12 +154,10 @@ function convertToInternalDocument(document: SourceDocument, highlightedElementI
       metadata: (normalizedDoc as any).metadata
     };
     
-    console.log('[DocumentViewerContext] Created internal document from SAS URL:', internalDoc);
     return internalDoc;
   }
   
   // For HTML documents, just add the highlightedElementId
-  console.log('[DocumentViewerContext] Processing HTML document');
   return {
     ...normalizedDoc as HtmlSourceDocument,
     highlightedElementId: highlightedElementId
@@ -308,8 +281,6 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
       );
     }
 
-    console.log('[DocumentViewerContext] Loading document:', { sourceLink, elementId, version: '0.1.20' });
-
     // Ensure we have a fetch function
     const fetchFn = fetchDocumentFnRef.current || providedFetchFn;
     if (!fetchFn) {
@@ -327,7 +298,6 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
     const isCurrentDocument = state.document && state.document.sourceLink === sourceLink;
     
     if (isCurrentDocument) {
-      console.log('Document already loaded, just updating highlight:', sourceLink);
       // Just update the highlightedElementId without reloading the document
       updateDocumentViewer({ 
         highlightedElementId: elementId || null
@@ -353,7 +323,6 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
     try {
       sourceType = extractSourceTypeFromUrl(sourceLink);
     } catch (error) {
-      console.error('Failed to extract source type:', error);
       sourceType = sourceLink.includes('transcript') ? 'transcript' : '10-k';
     }
     
@@ -378,8 +347,6 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
         // Add the new tab to the front
         updatedTabs.unshift(newTab);
       } catch (error) {
-        console.error('Failed to create tab:', error);
-        
         // Create a fallback tab with best guess for source type
         const sourceTypeGuess: SourceType = sourceLink.includes('transcript') ? 'transcript' : '10-k';
         
@@ -420,11 +387,9 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
     try {
       // Fetch the document using the consumer-provided function
       const response = await fetchFn(sourceLink);
-      console.log('[DocumentViewerContext] Received API response:', response);
       
       // Convert the source document to an internal document
       const internalDocument = convertToInternalDocument(response, elementId || null);
-      console.log('[DocumentViewerContext] Converted to internal document:', internalDocument);
       
       // Update the tab info with the loaded document data
       const updatedTabsAfterLoad = updatedTabs.map(tab => {
@@ -442,7 +407,6 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
       
       // CRITICAL: Update everything in a single state update to avoid race conditions
       // This ensures the document and tabs are updated atomically
-      console.log('[DocumentViewerContext] Updating document viewer state with new document');
       updateDocumentViewer({ 
         document: internalDocument,
         tabs: updatedTabsAfterLoad, 
@@ -452,8 +416,6 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
 
       // No need to call highlightElement separately, as we've already set the highlightedElementId
     } catch (error) {
-      console.error('[DocumentViewerContext] Failed to load document:', error);
-      
       // Update the tab to show it's no longer loading
       const updatedTabsAfterError = updatedTabs.map(tab => {
         if (tab.sourceLink === sourceLink) {
@@ -493,7 +455,6 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
     try {
       sourceType = extractSourceTypeFromUrl(sourceLink);
     } catch (error) {
-      console.error('Failed to extract source type:', error);
       sourceType = sourceLink.includes('transcript') ? 'transcript' : '10-k';
     }
     
@@ -542,7 +503,6 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
           updateDocumentViewer({ tabs: updatedTabs, isLoading: false });
         })
         .catch(error => {
-          console.error('Failed to load document:', error);
           updateDocumentViewer({ isLoading: false });
         });
       
@@ -598,8 +558,6 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
           updateDocumentViewer({ tabs: updatedTabs, isLoading: false });
         })
         .catch(error => {
-          console.error('Failed to load document:', error);
-          
           // Update the tab to show it's no longer loading
           const updatedTabs = currentTabs.map(tab => {
             if (tab.sourceLink === sourceLink) {
@@ -614,11 +572,6 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
           });
         });
     } catch (error) {
-      console.error('Failed to create tab:', error);
-      
-      // Show error to the user
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      
       // Even with an error, we should add the tab but mark it as having an error
       // This provides better UX by showing the user there was a problem with this tab
       const sourceTypeGuess: SourceType = sourceLink.includes('transcript') ? 'transcript' : '10-k';
@@ -638,7 +591,7 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
       updateDocumentViewer({ tabs: currentTabs });
       
       // Rethrow the error to be handled by the caller
-      throw new Error(`Failed to select tab: ${errorMessage}`);
+      throw new Error(`Failed to select tab: ${error instanceof Error ? error.message : String(error)}`);
     }
   }, [state.tabs, state.document, updateDocumentViewer, setDocument]);
 
@@ -691,7 +644,6 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
             });
           })
           .catch(error => {
-            console.error('Failed to load next document after tab close:', error);
             updateDocumentViewer({ 
               isLoading: false,
               tabs: newTabs
@@ -734,10 +686,10 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
   }, [updateDocumentViewer, state.zoomLevel]);
 
   /**
-   * Resets zoom to the default level (80%)
+   * Resets zoom to the default level (100%)
    */
   const resetZoom = useCallback(() => {
-    updateDocumentViewer({ zoomLevel: 0.8 });
+    updateDocumentViewer({ zoomLevel: 1.0 });
   }, [updateDocumentViewer]);
 
   // Create the context value object

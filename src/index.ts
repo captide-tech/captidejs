@@ -17,9 +17,6 @@
  * for rendering PDF and spreadsheet documents.
  */
 
-// Adding a console log for testing if local package is in use
-console.log('LOCAL CAPTIDE PACKAGE LOADED - VERIFICATION 2.0.0');
-
 // Import and export the main component
 import DocumentViewer from './components/DocumentViewer/DocumentViewer';
 export { DocumentViewer };

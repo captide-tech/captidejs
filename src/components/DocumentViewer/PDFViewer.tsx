@@ -61,7 +61,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
   sasUrl,
   className = 'w-full h-full',
   style,
-  zoomLevel = 0.2,
+  zoomLevel = 1.0,
   highlightedElementId = null
 }) => {
   const viewerContainerRef = useRef<HTMLDivElement>(null);
@@ -108,7 +108,6 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
             filename = decodeURIComponent(potentialFilename.split('?')[0]);
           }
         } catch (e) {
-          console.error('Error parsing URL for download:', e);
           // Fall back to default name
         }
         
@@ -123,7 +122,6 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
         document.body.removeChild(a);
       })
       .catch(error => {
-        console.error('Error downloading PDF:', error);
         // Fallback: open in new window if download fails
         window.open(sasUrl, '_blank');
       });
@@ -136,8 +134,6 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
 
     const loadPdfJs = async () => {
       try {
-        console.log("Loading PDF.js libraries...");
-        
         // Import PDF.js
         const pdfjsLib = await import('pdfjs-dist');
         
@@ -183,35 +179,6 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
             .pdfViewer .page.highlighted {
               box-shadow: 0 0 15px 5px rgba(255, 235, 59, 0.5);
             }
-            .pdf-loading {
-              position: absolute;
-              top: 0;
-              left: 0;
-              right: 0;
-              bottom: 0;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
-              background: rgba(255, 255, 255, 0.9);
-              z-index: 10;
-            }
-            .pdf-error {
-              position: absolute;
-              top: 0;
-              left: 0;
-              right: 0;
-              bottom: 0;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
-              background: rgba(255, 255, 255, 0.9);
-              z-index: 10;
-              padding: 20px;
-              color: #d32f2f;
-              text-align: center;
-            }
           `;
           document.head.appendChild(customStyles);
         }
@@ -220,7 +187,6 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
           setPdfJsLoaded(true);
         }
       } catch (err) {
-        console.error("Failed to load PDF.js:", err);
         if (mounted) {
           setError(`Failed to load PDF.js: ${err instanceof Error ? err.message : String(err)}`);
           setIsLoading(false);
@@ -248,8 +214,6 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
       try {
         setIsLoading(true);
         setError(null);
-        
-        console.log(`Loading PDF from SAS URL: ${sasUrl.substring(0, 50)}...`);
         
         // Dynamic imports for viewer components
         const pdfjsLib = await import('pdfjs-dist');
@@ -319,10 +283,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
         
         // Progress tracking
         loadingTask.onProgress = (data: { loaded: number; total: number }) => {
-          if (data.total > 0) {
-            const progress = Math.round((data.loaded / data.total) * 100);
-            console.log(`Loading PDF: ${progress}%`);
-          }
+          // Tracking occurs without logging
         };
         
         pdfDocumentInstance = await loadingTask.promise;
@@ -336,15 +297,12 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
         setNumPages(pdfDocumentInstance.numPages);
         setViewer(pdfViewerInstance);
         
-        console.log(`PDF loaded successfully: ${pdfDocumentInstance.numPages} pages`);
-        
         // Check if we need to jump to a specific page based on highlightedElementId
         if (highlightedElementId) {
           const pageNumber = extractPageNumberFromElementId(highlightedElementId);
           if (pageNumber !== null) {
             // extractPageNumberFromElementId returns 0-indexed, but PDF.js uses 1-indexed
             const oneBasedPageNumber = pageNumber + 1;
-            console.log(`Scrolling to highlighted page: ${pageNumber} (0-indexed) → ${oneBasedPageNumber} (1-indexed)`);
             
             // Wait for pages to render, then scroll
             setTimeout(() => {
@@ -363,16 +321,15 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
               }
             }, 100);
           }
-          
+        }
+        
+        // Only set loading to false once everything is properly set up
+        if (mounted) {
           setIsLoading(false);
         }
       } catch (err) {
-        console.error("Failed to load or render PDF:", err);
         if (mounted) {
           setError(`Failed to load or render PDF: ${err instanceof Error ? err.message : String(err)}`);
-        }
-      } finally {
-        if (mounted) {
           setIsLoading(false);
         }
       }
@@ -409,14 +366,19 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
 
   return (
     <div className={`relative ${className}`} style={style}>
+      {/* Main content container - hidden while loading */}
       <div 
         ref={viewerContainerRef}
         className="w-full h-full"
+        style={{ 
+          opacity: isLoading ? 0 : 1,
+          transition: 'opacity 0.3s ease'
+        }}
       />
       
-      {/* Loading overlay */}
+      {/* Loading spinner */}
       {isLoading && (
-        <div className="pdf-loading">
+        <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ backgroundColor: 'white' }}>
           <div style={{ 
             width: '40px', 
             height: '40px', 
@@ -436,22 +398,37 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
           </style>
           <div className="text-gray-600 font-medium text-lg mb-2">Loading PDF...</div>
           <div className="text-gray-400 text-sm">
-            {numPages === 0 ? 'Preparing document...' : 'Rendering pages...'}
+            {numPages === 0 ? 'Preparing document...' : `Loading ${numPages} pages...`}
           </div>
         </div>
       )}
       
       {/* Error display */}
       {error && !isLoading && (
-        <div className="pdf-error">
-          <div className="text-red-600 font-bold text-lg mb-2">Failed to load PDF</div>
-          <div className="text-gray-700 text-center max-w-md">{error}</div>
-          {!pdfJsLoaded && (
-            <div className="text-amber-600 text-sm mt-2">PDF.js could not be loaded. Please check your internet connection.</div>
-          )}
-          <div className="text-gray-500 text-sm mt-4 max-w-md overflow-hidden text-ellipsis">
-            URL: {sasUrl ? sasUrl.substring(0, 50) + '...' : 'No URL provided'}
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-4" style={{ backgroundColor: 'white' }}>
+          <div style={{ marginBottom: '20px', color: '#dc2626' }}>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="64"
+              height="64"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
           </div>
+          <h2 style={{ margin: '0 0 10px', fontSize: '20px', color: '#333' }}>
+            Failed to Load PDF
+          </h2>
+          <p style={{ margin: '0 0 20px', color: '#666', textAlign: 'center' }}>
+            {error}
+          </p>
           <button 
             className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
             onClick={() => window.location.reload()}
@@ -468,7 +445,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
         </div>
       )}
       
-      {/* Page indicator and download button */}
+      {/* Page indicator and download button - only shown when document is loaded */}
       {(numPages > 0 && !error && !isLoading) && (
         <>
           <div className="absolute top-2 left-2 z-10">

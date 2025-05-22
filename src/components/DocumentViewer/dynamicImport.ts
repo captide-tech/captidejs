@@ -42,8 +42,6 @@ const dynamicImport = <P extends object>(
       // This prevents errors when bundling for non-Next.js environments
       const dynamic = require('next/dynamic').default;
       
-      console.log(`Using Next.js dynamic import with SSR: ${ssr}`);
-      
       return dynamic(
         importFunc,
         { 
@@ -54,7 +52,6 @@ const dynamicImport = <P extends object>(
         }
       );
     } catch (e) {
-      console.warn('Failed to use next/dynamic, falling back to basic implementation:', e);
       // Fall through to basic implementation
     }
   }

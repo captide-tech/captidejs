@@ -40,7 +40,6 @@ const extractDomain = (url: string): string => {
     // Remove 'www.' if present
     return urlObj.hostname.replace(/^www\./, '');
   } catch (e) {
-    console.error('Error extracting domain:', e);
     return 'website';
   }
 };
@@ -164,7 +163,6 @@ const isValidSheet = (worksheet: XLSX.WorkSheet): boolean => {
     
     return true;
   } catch (e) {
-    console.error('Error validating sheet:', e);
     return false;
   }
 };
@@ -249,7 +247,6 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
           setWorkbook(wb);
         }
       } catch (err) {
-        console.error('Error loading spreadsheet:', err);
         setError(err instanceof Error ? err.message : String(err));
       } finally {
         setIsLoading(false);
@@ -339,7 +336,6 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
         a.download = potentialFilename;
       }
     } catch (e) {
-      console.error('Error parsing URL for download:', e);
       // Fall back to default name
     }
     
@@ -481,8 +477,6 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
       });
     });
     
-    console.log(`Found ${matches.length} rows containing the search term`);
-    
     setSearchMatches(matches);
     // Reset the current match index or set to the first match
     setCurrentMatchIndex(matches.length > 0 ? 0 : -1);
@@ -589,10 +583,6 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
       
       // Scroll the row into view
       targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      
-      console.log(`Highlighted row with match: ${currentMatchIndex + 1} of ${searchMatches.length}`);
-    } else {
-      console.warn(`Could not find row to highlight for match: ${currentMatchIndex + 1} of ${searchMatches.length}`);
     }
   }
 
@@ -601,253 +591,224 @@ const SpreadsheetViewer: React.FC<SpreadsheetViewerProps> = ({
     return <SpreadsheetPlaceholder className={className} style={style} />;
   }
 
-  // Return the appropriate UI based on component state
-  let content;
-  
-  if (isLoading) {
-    content = (
-      <div style={{ marginBottom: '20px' }}>
-        <div style={{ 
-          width: '40px', 
-          height: '40px', 
-          border: '3px solid #f3f3f3',
-          borderTop: '3px solid #475569',
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite'
-        }} />
-        <style>
-          {`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-          `}
-        </style>
-      </div>
-    );
-  } else if (error) {
-    content = (
-      <>
-        <div style={{ marginBottom: '20px', color: '#dc2626' }}>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="64"
-            height="64"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-          </svg>
-        </div>
-        <h2 style={{ margin: '0 0 10px', fontSize: '20px', color: '#333' }}>
-          Failed to Load Spreadsheet
-        </h2>
-        <p style={{ margin: '0 0 20px', color: '#666', textAlign: 'center' }}>
-          {error}
-        </p>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <DownloadButton 
-            onClick={handleDownload}
-            primary={true}
-          />
-          
-          {webpageUrl && (
-            <SourceButton
-              onClick={handleOpenSourceWebpage}
-              domain={extractDomain(webpageUrl)}
-            />
-          )}
-        </div>
-      </>
-    );
-  } else if (!workbook || validSheets.length === 0) {
-    content = (
-      <>
-        <div style={{ marginBottom: '20px' }}>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="64"
-            height="64"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ color: '#475569' }}
-          >
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-            <polyline points="14 2 14 8 20 8"></polyline>
-            <line x1="8" y1="12" x2="16" y2="12"></line>
-            <line x1="8" y1="16" x2="16" y2="16"></line>
-            <line x1="8" y1="8" x2="11" y2="8"></line>
-          </svg>
-        </div>
-
-        <h2 style={{ margin: '0 0 10px', fontSize: '20px', color: '#333' }}>
-          Spreadsheet Document
-        </h2>
-        
-        <p style={{ margin: '0 0 20px', color: '#666' }}>
-          {validSheets.length === 0 && workbook ? 
-            "No valid sheets found in this spreadsheet. You can download the file instead." : 
-            "Unable to render the spreadsheet. You can download it instead."}
-        </p>
-        
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <DownloadButton 
-            onClick={handleDownload}
-            primary={true}
-          />
-          
-          {webpageUrl && (
-            <SourceButton
-              onClick={handleOpenSourceWebpage}
-              domain={extractDomain(webpageUrl)}
-            />
-          )}
-        </div>
-      </>
-    );
-  } else {
-    // Successful render with workbook and valid sheets
-    return (
-      <div
-        className={className}
-        style={{
-          ...style,
-          display: 'flex',
-          flexDirection: 'column',
-          padding: '0', // Remove padding to allow content to fill the space
-          backgroundColor: '#ffffff',
-          borderRadius: '4px',
-          overflow: 'hidden', // Change to hidden to ensure proper layout
-          position: 'relative',
-        }}
-      >
-        {/* Header area with controls - position absolute to float above content */}
-        <div style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 10,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '8px',
-          padding: '16px', // Add padding to the header
-          backgroundColor: 'transparent', // Fully transparent background
-          backdropFilter: 'none', // Remove blur effect
-        }}>
+  return (
+    <div
+      className={className}
+      style={{
+        ...style,
+        display: 'flex',
+        flexDirection: 'column',
+        padding: '0',
+        backgroundColor: '#ffffff',
+        borderRadius: '4px',
+        overflow: 'hidden',
+        position: 'relative'
+      }}
+    >
+      {/* Loading state */}
+      {isLoading && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ backgroundColor: 'white', zIndex: 20 }}>
           <div style={{ 
-            minWidth: '120px',
-            marginRight: '8px'
-          }}>
-            {renderSheetSelector()}
+            width: '40px', 
+            height: '40px', 
+            border: '3px solid #f3f3f3',
+            borderTop: '3px solid #475569',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            marginBottom: '20px'
+          }} />
+          <style>
+            {`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+            `}
+          </style>
+          <div className="text-gray-600 font-medium text-lg mb-2">Loading spreadsheet...</div>
+          <div className="text-gray-400 text-sm">Preparing data</div>
+        </div>
+      )}
+      
+      {/* Error state */}
+      {error && !isLoading && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-4" style={{ backgroundColor: 'white', zIndex: 20 }}>
+          <div style={{ marginBottom: '20px', color: '#dc2626' }}>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="64"
+              height="64"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
           </div>
-          
-          <div style={{ 
-            display: 'flex', 
-            gap: '8px',
-            marginLeft: 'auto'
-          }}>
+          <h2 style={{ margin: '0 0 10px', fontSize: '20px', color: '#333' }}>
+            Failed to Load Spreadsheet
+          </h2>
+          <p style={{ margin: '0 0 20px', color: '#666', textAlign: 'center' }}>
+            {error}
+          </p>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <DownloadButton 
+              onClick={handleDownload}
+              primary={true}
+            />
+            
             {webpageUrl && (
               <SourceButton
                 onClick={handleOpenSourceWebpage}
                 domain={extractDomain(webpageUrl)}
-                minWidth={90}
               />
             )}
-          
-            <DownloadButton 
-              onClick={handleDownload}
-              minWidth={90}
-            />
           </div>
         </div>
-        
-        {/* Main content - add top padding to make room for the header */}
-        <div 
-          ref={tableRef}
-          style={{
-            overflow: 'auto',
-            flex: 1,
-            paddingTop: '64px', // Add padding to ensure content starts below the header
-            paddingLeft: '16px', // Add left padding
-          }}
-        />
-        
-        {/* Search panel - positioned at bottom left with responsive positioning */}
-        <div style={{
-          position: 'absolute',
-          bottom: '16px',
-          left: '16px',
-          zIndex: 5
-        }}>
-          <SpreadsheetSearch 
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            onSearch={performSearch}
-            onPrevious={navigateToPreviousMatch}
-            onNext={navigateToNextMatch}
-            onClose={closeSearch}
-            matchCount={searchMatches.length}
-            currentMatchIndex={currentMatchIndex}
-            isOpen={isSearchOpen}
-            onToggle={toggleSearch}
-          />
-        </div>
-        
-        {/* Add CSS for search highlighting and any other needed styles */}
-        <style>
-          {`
-            .search-highlight {
-              transition: background-color 0.2s ease;
-            }
-          `}
-        </style>
-      </div>
-    );
-  }
+      )}
 
-  // For loading, error, and no workbook states
-  if (isLoading || error || !workbook || validSheets.length === 0) {
-    return (
-      <div 
-        className={className}
-        style={{
-          ...style,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: '20px',
-          backgroundColor: '#f9f9f9',
-          border: isLoading ? 'none' : '1px solid #e0e0e0',
-          borderRadius: '4px',
-          textAlign: 'center'
-        }}
-      >
-        {content}
-        {isLoading && (
-          <p style={{ margin: '0', color: '#666' }}>
-            Loading spreadsheet...
+      {/* No valid sheets state */}
+      {!isLoading && !error && workbook && validSheets.length === 0 && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-4" style={{ backgroundColor: 'white', zIndex: 20 }}>
+          <div style={{ marginBottom: '20px' }}>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="64"
+              height="64"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ color: '#475569' }}
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="8" y1="12" x2="16" y2="12"></line>
+              <line x1="8" y1="16" x2="16" y2="16"></line>
+              <line x1="8" y1="8" x2="11" y2="8"></line>
+            </svg>
+          </div>
+
+          <h2 style={{ margin: '0 0 10px', fontSize: '20px', color: '#333' }}>
+            Spreadsheet Document
+          </h2>
+          
+          <p style={{ margin: '0 0 20px', color: '#666' }}>
+            No valid sheets found in this spreadsheet. You can download the file instead.
           </p>
-        )}
-      </div>
-    );
-  }
-
-  // Default return (should never reach here due to conditions above)
-  return null;
+          
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <DownloadButton 
+              onClick={handleDownload}
+              primary={true}
+            />
+            
+            {webpageUrl && (
+              <SourceButton
+                onClick={handleOpenSourceWebpage}
+                domain={extractDomain(webpageUrl)}
+              />
+            )}
+          </div>
+        </div>
+      )}
+      
+      {/* Content loaded and has valid sheets */}
+      {!isLoading && !error && workbook && validSheets.length > 0 && (
+        <>
+          {/* Header area with controls */}
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 10,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '8px',
+            padding: '16px',
+            backgroundColor: 'transparent',
+          }}>
+            <div style={{ 
+              minWidth: '120px',
+              marginRight: '8px'
+            }}>
+              {renderSheetSelector()}
+            </div>
+            
+            <div style={{ 
+              display: 'flex', 
+              gap: '8px',
+              marginLeft: 'auto'
+            }}>
+              {webpageUrl && (
+                <SourceButton
+                  onClick={handleOpenSourceWebpage}
+                  domain={extractDomain(webpageUrl)}
+                  minWidth={90}
+                />
+              )}
+            
+              <DownloadButton 
+                onClick={handleDownload}
+                minWidth={90}
+              />
+            </div>
+          </div>
+          
+          {/* Main content */}
+          <div 
+            ref={tableRef}
+            style={{
+              overflow: 'auto',
+              flex: 1,
+              paddingTop: '64px',
+              paddingLeft: '16px',
+            }}
+          />
+          
+          {/* Search panel */}
+          <div style={{
+            position: 'absolute',
+            bottom: '16px',
+            left: '16px',
+            zIndex: 5
+          }}>
+            <SpreadsheetSearch 
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              onSearch={performSearch}
+              onPrevious={navigateToPreviousMatch}
+              onNext={navigateToNextMatch}
+              onClose={closeSearch}
+              matchCount={searchMatches.length}
+              currentMatchIndex={currentMatchIndex}
+              isOpen={isSearchOpen}
+              onToggle={toggleSearch}
+            />
+          </div>
+        </>
+      )}
+      
+      {/* Add CSS for search highlighting and other styles */}
+      <style>
+        {`
+          .search-highlight {
+            transition: background-color 0.2s ease;
+          }
+        `}
+      </style>
+    </div>
+  );
 };
 
 export default SpreadsheetViewer; 

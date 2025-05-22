@@ -68,18 +68,6 @@ const ShareableLinkTooltip: React.FC<ShareableLinkTooltipProps> = ({
   // Generate the shareable link
   const shareableLink = generateShareableLink(sourceLink, elementId, baseUrl, viewerRoutePath);
   
-  // Debug logging
-  React.useEffect(() => {
-    if (isVisible) {
-      console.log('ShareableLinkTooltip visible:', { 
-        position,
-        sourceLink,
-        elementId,
-        shareableLink
-      });
-    }
-  }, [isVisible, position, sourceLink, elementId, shareableLink]);
-  
   // Handle copying the link to clipboard
   const copyToClipboard = async () => {
     try {
@@ -91,7 +79,7 @@ const ShareableLinkTooltip: React.FC<ShareableLinkTooltipProps> = ({
         setCopied(false);
       }, 2000);
     } catch (error) {
-      console.error('Failed to copy link:', error);
+      // Silent error handling
     }
   };
   

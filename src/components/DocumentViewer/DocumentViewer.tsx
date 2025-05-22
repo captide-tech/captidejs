@@ -148,26 +148,30 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     if (!containerElement) return;
     
     // Function to handle scroll events from the container
-    const handleContainerScroll = (event: WheelEvent) => {
+    const handleNativeScroll = (event: WheelEvent) => {
       // If ctrl is pressed, let the zoom handler take care of it
-      if (event.ctrlKey) return;
-      
-      // Otherwise, allow normal scrolling behavior
-      // No need to prevent default or handle custom scrolling
+      if (event.ctrlKey) {
+        event.preventDefault();
+        if (event.deltaY < 0) {
+          zoomIn();
+        } else {
+          zoomOut();
+        }
+      }
     };
     
-    // Add scroll event listener to the container
-    containerElement.addEventListener('wheel', handleContainerScroll, { passive: true });
+    // Add scroll event listener with capture to ensure it gets events first
+    containerElement.addEventListener('wheel', handleNativeScroll, { passive: false });
     
     // Clean up event listener on unmount
     return () => {
-      containerElement.removeEventListener('wheel', handleContainerScroll);
+      containerElement.removeEventListener('wheel', handleNativeScroll);
     };
-  }, []);
+  }, [zoomIn, zoomOut]);
   
   // Create a React.Suspense fallback for dynamic components
   const loadingFallback = (
-    <div className="w-full h-full flex items-center justify-center bg-gray-50">
+    <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: 'white' }}>
       <div className="text-lg font-medium text-gray-500">
         Loading viewer component...
       </div>
@@ -178,27 +182,41 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const renderAppropriateViewer = () => {
     // If no document or loading, show loading state
     if (!document || isLoading) {
-      console.log('[DocumentViewer] No document or still loading:', { 
-        documentExists: !!document, 
-        isLoading 
-      });
       return (
-        <div className="w-full h-full flex items-center justify-center bg-gray-50">
-          <div className="text-lg font-medium text-gray-500">
+        <div className="w-full h-full flex flex-col items-center justify-center" 
+          style={{ 
+            backgroundColor: 'white',
+            transition: 'opacity 0.3s ease'
+          }}
+        >
+          {isLoading && (
+            <div style={{ 
+              width: '40px', 
+              height: '40px', 
+              border: '3px solid #f3f3f3',
+              borderTop: '3px solid #475569',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+              marginBottom: '20px'
+            }} />
+          )}
+          <style>
+            {`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+            `}
+          </style>
+          <div className="text-gray-600 font-medium text-lg mb-2">
             {isLoading ? 'Loading document...' : 'No document loaded'}
           </div>
+          {isLoading && (
+            <div className="text-gray-400 text-sm">Please wait while we prepare your document</div>
+          )}
         </div>
       );
     }
-
-    // Debug document properties
-    console.log('[DocumentViewer] Document properties:', {
-      sourceType: document.sourceType,
-      fileType: document.fileType,
-      sasUrl: document.sasUrl,
-      contentType: document.contentType,
-      fileName: document.fileName
-    });
 
     // CASE 1: PDF Documents
     // For documents with PDF file type or PDF content type
@@ -207,13 +225,10 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                   (document.fileName && document.fileName.toLowerCase().endsWith('.pdf'));
       
     if (isPDF && document.sasUrl) {
-      console.log('[DocumentViewer] ✅ Rendering PDF viewer');
-      console.log(`[DocumentViewer] Using sasUrl: ${document.sasUrl.substring(0, 50)}...`);
-      
       return (
         <React.Suspense 
           fallback={
-            <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50 p-4">
+            <div className="w-full h-full flex flex-col items-center justify-center p-4" style={{ backgroundColor: 'white' }}>
               <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mb-4"></div>
               <div className="text-lg font-medium text-gray-500">Loading PDF viewer...</div>
               <div className="text-sm text-gray-400 mt-2">This may take a moment</div>
@@ -241,11 +256,14 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                            document.fileName.toLowerCase().endsWith('.xls')));
                            
     if (isSpreadsheet && document.sasUrl) {
-      console.log('[DocumentViewer] ✅ Rendering Spreadsheet viewer');
-      console.log(`[DocumentViewer] Using sasUrl: ${document.sasUrl.substring(0, 50)}...`);
-      
       return (
-        <React.Suspense fallback={loadingFallback}>
+        <React.Suspense fallback={
+          <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: 'white' }}>
+            <div className="text-lg font-medium text-gray-500">
+              Loading spreadsheet viewer...
+            </div>
+          </div>
+        }>
           <SpreadsheetViewer
             sasUrl={document.sasUrl}
             className={className}
@@ -258,7 +276,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     }
 
     // CASE 3: HTML Documents (the default case)
-    console.log('[DocumentViewer] ✅ Rendering HTML viewer');
     return (
       <HTMLViewer
         document={document}
@@ -282,7 +299,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       style={{
         width: '100%',
         height: '100%',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        backgroundColor: 'white'
       }}
       onWheel={handleContainerScroll}
     >

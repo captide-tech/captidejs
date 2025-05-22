@@ -4,7 +4,13 @@ import ShareableLinkTooltip from '../ShareableLinkTooltip';
 import { isInternationalFiling, processHtmlForPageBreaks, isProxyStatement } from './utils/documentProcessing';
 import { highlightElementsInRange } from './utils/highlighting';
 import { copyLinkToClipboard, setupShareableLinkButtons } from './utils/shareableLinks';
-import { getBaseHtmlTemplate, generateGeneralStyles, generateInternationalFilingStyles, generatePageBasedDocumentStyles } from './styles';
+import { 
+  getBaseHtmlTemplate, 
+  generateGeneralStyles, 
+  generateInternationalFilingStyles, 
+  generatePageBasedDocumentStyles,
+  generateFinancialFilingStyles
+} from './styles';
 import { 
   handleInternationalFilingHighlight, 
   handlePageBasedDocumentLoad 
@@ -129,6 +135,11 @@ const HTMLViewer: React.FC<HTMLViewerProps> = ({
           .first-highlighted {
             margin-top: 12px !important;
           }
+          
+          /* Ensure white background */
+          html, body {
+            background-color: white !important;
+          }
         `;
         iframeDocument.head.appendChild(style);
         
@@ -162,7 +173,7 @@ const HTMLViewer: React.FC<HTMLViewerProps> = ({
         return;
       }
       
-      // Add styles for document types (for non-international filings)
+      // Add styles for 8-K documents and proxy statements
       if (document.sourceType === '8-k' || isProxyStatement(document.sourceType)) {
         const style = iframeDocument.createElement('style');
         style.textContent = generatePageBasedDocumentStyles(zoomLevel);
@@ -176,7 +187,37 @@ const HTMLViewer: React.FC<HTMLViewerProps> = ({
         return;
       }
 
-      // Handle standard document types (10-K, 10-Q, transcripts)
+      // Special handling for 10-K and 10-Q documents
+      if (document.sourceType.toLowerCase() === '10-k' || document.sourceType.toLowerCase() === '10-q') {
+        const style = iframeDocument.createElement('style');
+        style.textContent = generateFinancialFilingStyles(zoomLevel);
+        iframeDocument.head.appendChild(style);
+        
+        // Apply standard document highlighting
+        handleStandardDocumentHighlight(
+          iframe, 
+          document, 
+          highlightedElementId, 
+          previousDocumentRef.current !== document.sourceLink || 
+            previousSourceTypeRef.current !== document.sourceType,
+          highlightElementsInRange
+        );
+        
+        // Setup shareable link buttons
+        setupShareableLinkButtons(
+          iframeRef, 
+          shareableLinkButtonColor, 
+          document, 
+          highlightedElementId, 
+          areShareableLinksEnabled
+        );
+        
+        // Set loading to false after processing
+        setIsLoading(false);
+        return;
+      }
+
+      // Handle other standard document types (transcripts, etc.)
       handleStandardDocumentHighlight(
         iframe, 
         document, 
@@ -186,10 +227,19 @@ const HTMLViewer: React.FC<HTMLViewerProps> = ({
         highlightElementsInRange
       );
 
-      // Add general styles for all document types
+      // Add general styles for all other document types
       const generalStyle = iframeDocument.createElement('style');
       generalStyle.textContent = generateGeneralStyles(zoomLevel);
       iframeDocument.head.appendChild(generalStyle);
+
+      // Add additional style to ensure white background
+      const backgroundStyle = iframeDocument.createElement('style');
+      backgroundStyle.textContent = `
+        html, body { 
+          background-color: white !important;
+        }
+      `;
+      iframeDocument.head.appendChild(backgroundStyle);
 
       // Setup shareable link buttons after all other processing
       setTimeout(() => {
@@ -330,6 +380,26 @@ const HTMLViewer: React.FC<HTMLViewerProps> = ({
     };
     
     window.addEventListener('message', handleIframeResize);
+    
+    // Add a ResizeObserver to handle container size changes
+    // This helps with resizable panels
+    const containerElement = iframeRef.current?.parentElement;
+    if (containerElement && window.ResizeObserver) {
+      const resizeObserver = new ResizeObserver(() => {
+        // Force iframe to refresh its layout
+        if (iframeRef.current && iframeRef.current.contentWindow) {
+          iframeRef.current.contentWindow.dispatchEvent(new Event('resize'));
+        }
+      });
+      
+      resizeObserver.observe(containerElement);
+      
+      return () => {
+        window.removeEventListener('message', handleIframeResize);
+        resizeObserver.disconnect();
+      };
+    }
+    
     return () => {
       window.removeEventListener('message', handleIframeResize);
     };
@@ -339,7 +409,7 @@ const HTMLViewer: React.FC<HTMLViewerProps> = ({
   const html = document && document.htmlContent ? getBaseHtmlTemplate(document.htmlContent) : '';
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full" style={{ background: 'white' }}>
       <iframe
         ref={iframeRef}
         srcDoc={html}
@@ -348,6 +418,13 @@ const HTMLViewer: React.FC<HTMLViewerProps> = ({
           ...style,
           border: 'none',
           opacity: isLoading ? 0 : 1, // Hide iframe until content is loaded
+          width: '100%',
+          height: '100%',
+          overflow: 'auto',
+          background: 'white',
+          display: 'block', // Ensure block display for full width
+          maxWidth: '100%', // Limit to container width
+          transition: 'opacity 0.3s ease' // Smooth transition when loading completes
         }}
         title="Document Viewer"
       />
@@ -355,9 +432,10 @@ const HTMLViewer: React.FC<HTMLViewerProps> = ({
       {/* Loading spinner */}
       {isLoading && (
         <div 
-          className="absolute inset-0 flex flex-col items-center justify-center bg-gray-50"
+          className="absolute inset-0 flex flex-col items-center justify-center"
           style={{
-            zIndex: 10
+            zIndex: 10,
+            backgroundColor: 'white'
           }}
         >
           <div style={{ 
