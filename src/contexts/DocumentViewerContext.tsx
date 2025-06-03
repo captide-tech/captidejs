@@ -15,8 +15,8 @@ import {
 
 // Define valid source types array based on the SourceType type
 const VALID_SOURCE_TYPES: SourceType[] = [
-  '10-k', '10-q', '8-k', 'transcript', 'def 14a', 'defm14a', 
-  'def 14c', 'defm14c', '20-f', '40-f', '6-k', 's-1', 'ir'
+  '10-K', '10-Q', '8-K', 'transcript', 'DEF 14A', 'DEFM14A', 
+  'DEF 14C', 'DEFM14C', '20-F', '40-F', '6-K', 'S-1', 'ir'
 ];
 
 // Initial state for the context
@@ -57,12 +57,21 @@ function extractSourceTypeFromUrl(sourceLink: string): SourceType {
       return 'ir'; // Default to ir if not specified
     }
     
-    // Make comparison case-insensitive by converting to lowercase
-    const normalizedSourceType = sourceTypeParam.toLowerCase();
+    // Normalize to match the API format (uppercase for SEC filings, lowercase for others)
+    const upperCaseParam = sourceTypeParam.toUpperCase();
     
-    // Validate that sourceTypeParam is a valid SourceType
-    if (VALID_SOURCE_TYPES.includes(normalizedSourceType as SourceType)) {
-      return normalizedSourceType as SourceType;
+    // Check if it matches any of our valid source types exactly
+    if (VALID_SOURCE_TYPES.includes(sourceTypeParam as SourceType)) {
+      return sourceTypeParam as SourceType;
+    }
+    
+    // Handle case-insensitive matching for SEC filings
+    const normalizedType = VALID_SOURCE_TYPES.find(validType => 
+      validType.toUpperCase() === upperCaseParam
+    );
+    
+    if (normalizedType) {
+      return normalizedType;
     }
     
     // If not valid, return a default type
@@ -77,9 +86,9 @@ function extractSourceTypeFromUrl(sourceLink: string): SourceType {
  * Extract file type from a sourceLink URL
  * 
  * @param sourceLink - The source link containing the fileType parameter
- * @returns The file type value or null if not specified
+ * @returns The file type value or undefined if not specified
  */
-function extractFileTypeFromUrl(sourceLink: string): FileType {
+function extractFileTypeFromUrl(sourceLink: string): FileType | undefined {
   try {
     const url = new URL(sourceLink);
     const fileTypeParam = url.searchParams.get('fileType');
@@ -89,9 +98,9 @@ function extractFileTypeFromUrl(sourceLink: string): FileType {
       return fileTypeParam;
     }
     
-    return null;
+    return undefined;
   } catch (e) {
-    return null;
+    return undefined;
   }
 }
 
@@ -115,13 +124,24 @@ function convertToInternalDocument(document: SourceDocument, highlightedElementI
     (document as any).sourceLink = 'unknown';
   }
   
-  // Normalize sourceType to lowercase to handle case-insensitive matching
-  // This ensures values like "IR" will be converted to "ir" to match our type definition
-  const normalizedSourceType = ((document.sourceType || '') + '').toLowerCase() as SourceType;
+  // Ensure sourceType is valid - use the API format directly if it's already valid
+  let validSourceType: SourceType = 'ir'; // default
+  if (VALID_SOURCE_TYPES.includes(document.sourceType as SourceType)) {
+    validSourceType = document.sourceType as SourceType;
+  } else {
+    // Try to normalize case for known types
+    const upperCase = document.sourceType.toUpperCase();
+    const foundType = VALID_SOURCE_TYPES.find(validType => 
+      validType.toUpperCase() === upperCase
+    );
+    if (foundType) {
+      validSourceType = foundType;
+    }
+  }
   
   const normalizedDoc = {
     ...document,
-    sourceType: normalizedSourceType
+    sourceType: validSourceType
   };
   
   // Special case for documents with sasUrl (binary documents)
@@ -135,15 +155,14 @@ function convertToInternalDocument(document: SourceDocument, highlightedElementI
     const internalDoc = {
       sourceLink: normalizedDoc.sourceLink,
       sourceType: normalizedDoc.sourceType, 
-      date: (normalizedDoc as any).date || '',
+      date: (normalizedDoc as any).date || null,
       htmlContent: '', // Empty for binary documents
       ticker: (normalizedDoc as any).ticker || '',
-      fiscalPeriod: (normalizedDoc as any).fiscalPeriod || '',
+      fiscalPeriod: (normalizedDoc as any).fiscalPeriod || null,
       companyName: (normalizedDoc as any).companyName || '',
       highlightedElementId: highlightedElementId,
       fileType: (normalizedDoc as any).fileType as FileType || 
-               (((normalizedDoc as any).fileName || '').toLowerCase().endsWith('.pdf') ? 'pdf' : 
-               (((normalizedDoc as any).fileName || '').toLowerCase().endsWith('.xlsx') ? 'xlsx' : 'pdf')), 
+               (((normalizedDoc as any).fileName || '').toLowerCase().endsWith('.pdf') ? 'pdf' : 'xlsx'), 
       // Pass through additional properties
       contentType: (normalizedDoc as any).contentType || 
                   (((normalizedDoc as any).fileName || '').toLowerCase().endsWith('.pdf') ? 'application/pdf' : 
@@ -151,7 +170,7 @@ function convertToInternalDocument(document: SourceDocument, highlightedElementI
       fileName: (normalizedDoc as any).fileName,
       sasUrl: (normalizedDoc as any).sasUrl,
       // Include metadata from the original document
-      metadata: (normalizedDoc as any).metadata
+      metadata: (normalizedDoc as any).metadata || {}
     };
     
     return internalDoc;
@@ -323,11 +342,11 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
     try {
       sourceType = extractSourceTypeFromUrl(sourceLink);
     } catch (error) {
-      sourceType = sourceLink.includes('transcript') ? 'transcript' : '10-k';
+      sourceType = sourceLink.includes('transcript') ? 'transcript' : '10-K';
     }
     
-    // Extract file type for 'ir' documents
-    let fileType: FileType = null;
+    // Extract file type for 'ir' documents - only assign if we get a valid result
+    let fileType: FileType | undefined;
     if (sourceType === 'ir') {
       fileType = extractFileTypeFromUrl(sourceLink);
     }
@@ -348,7 +367,7 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
         updatedTabs.unshift(newTab);
       } catch (error) {
         // Create a fallback tab with best guess for source type
-        const sourceTypeGuess: SourceType = sourceLink.includes('transcript') ? 'transcript' : '10-k';
+        const sourceTypeGuess: SourceType = sourceLink.includes('transcript') ? 'transcript' : '10-K';
         
         const fallbackTab: TabInfo = {
           sourceLink,
@@ -455,11 +474,11 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
     try {
       sourceType = extractSourceTypeFromUrl(sourceLink);
     } catch (error) {
-      sourceType = sourceLink.includes('transcript') ? 'transcript' : '10-k';
+      sourceType = sourceLink.includes('transcript') ? 'transcript' : '10-K';
     }
     
-    // Extract file type for 'ir' documents
-    let fileType: FileType = null;
+    // Extract file type for 'ir' documents - only assign if we get a valid result
+    let fileType: FileType | undefined;
     if (sourceType === 'ir') {
       fileType = extractFileTypeFromUrl(sourceLink);
     }
@@ -574,7 +593,7 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
     } catch (error) {
       // Even with an error, we should add the tab but mark it as having an error
       // This provides better UX by showing the user there was a problem with this tab
-      const sourceTypeGuess: SourceType = sourceLink.includes('transcript') ? 'transcript' : '10-k';
+      const sourceTypeGuess: SourceType = sourceLink.includes('transcript') ? 'transcript' : '10-K';
       
       const errorTab: TabInfo = {
         sourceLink,

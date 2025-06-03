@@ -13,7 +13,7 @@
 
 ## Overview
 
-Captide enables precise querying across over 750,000 SEC filings and earnings calls, offering best-in-class accuracy for financial analysis. It streamlines data extraction, investment research, and document review—accessible through a user-friendly interface at [app.captide.co](https://app.captide.co) or directly via API.
+Captide enables precise querying across over millions filings and earnings calls, offering best-in-class accuracy for financial analysis. It streamlines data extraction, investment research, and document review—accessible through a user-friendly interface at [app.captide.co](https://app.captide.co) or directly via API.
 
 ## About This Package
 

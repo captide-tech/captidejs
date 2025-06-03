@@ -4,26 +4,22 @@
 
 /**
  * Defines the possible types of source documents
+ * Updated to match the new API response format exactly
  */
 export type SourceType = 
-  | '10-k' | '10-K' 
-  | '10-q' | '10-Q' 
-  | '8-k' | '8-K' 
-  | 'transcript' | 'TRANSCRIPT'
-  | 'def 14a' | 'DEF 14A'
-  | 'defm14a' | 'DEFM14A'
-  | 'def 14c' | 'DEF 14C'
-  | 'defm14c' | 'DEFM14C'
-  | '20-f' | '20-F'
-  | '40-f' | '40-F'
-  | '6-k' | '6-K'
-  | 's-1' | 'S-1'
-  | 'ir' | 'IR';
+  | '10-K' | '10-Q' | '8-K' 
+  | 'transcript'
+  | 'DEF 14A' | 'DEFM14A'
+  | 'DEF 14C' | 'DEFM14C'
+  | '20-F' | '40-F' | '6-K'
+  | 'S-1'
+  | 'ir';
 
 /**
  * Document file types for binary documents
+ * Updated to remove null since the API always provides this for blob documents
  */
-export type FileType = 'pdf' | 'xlsx' | null;
+export type FileType = 'pdf' | 'xlsx';
 
 // Extend the Window interface to include the highlightCaptidePage function
 declare global {
@@ -43,10 +39,10 @@ export interface SourceDocumentBase {
   /** Type of document */
   sourceType: SourceType;
   
-  /** Stock ticker symbol */
+  /** Stock ticker symbol - nullable in base but required in concrete implementations */
   ticker: string | null;
   
-  /** Fiscal period (e.g., 'Q1 2023') */
+  /** Fiscal period (e.g., 'Q1 2023') - nullable in base but required in concrete implementations */
   fiscalPeriod: string | null;
 }
 
@@ -58,58 +54,68 @@ export interface TabInfo extends SourceDocumentBase {
 /**
  * Complete source document with HTML content and additional metadata
  * Used for standard HTML-based documents
+ * Updated to match new API response format
  */
 export interface HtmlSourceDocument extends SourceDocumentBase {
   /** HTML content of the document */
   htmlContent: string;
   
-  /** Document date */
-  date: string;
+  /** Document date - can be null per API */
+  date: string | null;
   
-  /** Company name */
+  /** Company name - always present per API */
   companyName: string;
   
   /** ID of element to highlight, for 8-K documents, the last 4 digits indicate page number */
   highlightedElementId?: string | null;
   
-  /** Override ticker to make it required and non-null */
+  /** Override ticker to make it required and non-null per API */
   ticker: string;
   
-  /** Override fiscalPeriod to make it required and non-null */
-  fiscalPeriod: string;
+  /** Override fiscalPeriod but keep it nullable per API */
+  fiscalPeriod: string | null;
+  
+  /** Additional metadata - always present per API (may be empty object) */
+  metadata: {
+    /** URL to the original source webpage where the document was obtained */
+    webpageUrl?: string;
+    /** Any other metadata properties */
+    [key: string]: any;
+  };
 }
 
 /**
  * Binary document response for PDF or XLSX files
  * Used for non-HTML documents like PDF or Excel files
+ * Updated to match new API response format
  */
 export interface BinarySourceDocument extends SourceDocumentBase {
-  /** Document date */
-  date: string;
+  /** Document date - can be null per API */
+  date: string | null;
   
-  /** Company name */
+  /** Company name - always present per API */
   companyName: string;
   
-  /** Override ticker to make it required and non-null */
+  /** Override ticker to make it required and non-null per API */
   ticker: string;
   
-  /** Override fiscalPeriod to make it required and non-null */
-  fiscalPeriod: string;
+  /** Override fiscalPeriod but keep it nullable per API */
+  fiscalPeriod: string | null;
   
-  /** Type of binary file */
-  fileType: 'pdf' | 'xlsx';
+  /** Type of binary file - always present per API */
+  fileType: FileType;
   
   /** SAS URL for the document (Azure storage shared access signature) */
   sasUrl: string;
   
-  /** Content type of the document */
-  contentType?: string;
+  /** Content type of the document - always present per API */
+  contentType: string;
   
-  /** File name of the document */
-  fileName?: string;
+  /** File name of the document - always present per API */
+  fileName: string;
   
-  /** Additional metadata containing source information */
-  metadata?: {
+  /** Additional metadata - always present per API (may be empty object) */
+  metadata: {
     /** URL to the original source webpage where the document was obtained */
     webpageUrl?: string;
     /** Any other metadata properties */
@@ -139,13 +145,7 @@ export interface InternalDocument extends HtmlSourceDocument {
   /** File name of the document */
   fileName?: string;
   
-  /** Additional metadata for the document */
-  metadata?: {
-    /** URL to the original source webpage where the document was obtained */
-    webpageUrl?: string;
-    /** Any other metadata properties */
-    [key: string]: any;
-  };
+  /** Additional metadata for the document - always present but inherited from HtmlSourceDocument */
 }
 
 /**
