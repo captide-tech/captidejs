@@ -179,8 +179,8 @@ export const createRectangleHighlight = async (
       
       // Add some padding for better visibility and shift up/left
       const padding = 4;
-      const offsetX = 7; // shift more to the left
-      const offsetY = 5; // shift more up
+      const offsetX = 9; // shift more to the left
+      const offsetY = 2; // shift more up
       highlightElement.style.left = `${Math.min(x1, x2) - padding - offsetX}px`;
       highlightElement.style.top = `${Math.min(y1, y2) - padding - offsetY}px`;
       highlightElement.style.width = `${Math.abs(x2 - x1) + padding * 2}px`;

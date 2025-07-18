@@ -15,14 +15,13 @@ declare global {
   }
 }
 
-// DocumentV2Response model (frontend TypeScript version)
 export interface Document {
-  id: string;
+  sourceLink: string; // Unique identifier for the document, e.g. used for tabs
   documentCategory: string;
-  formType: string;
+  formType: string | null;
   ticker: string;
   companyName: string;
-  date?: string | null;
+  date: string | null;
   fiscalQuarter: number | null;
   fiscalYear: number | null;
   originalFileUrl: string;
@@ -31,19 +30,11 @@ export interface Document {
   fileType: FileType;
 }
 
-// TabInfo for the new model
-export interface TabInfo {
-  id: string;
-  documentCategory: string;
-  formType?: string | null;
-  ticker?: string | null;
-  companyName?: string | null;
-  date?: string | null;
-  fiscalQuarter?: number | null;
-  fiscalYear?: number | null;
-  originalFileUrl: string;
-  markdownFileUrl: string;
-  metadata: Record<string, any>;
+// TabInfo extends Document with tab-specific fields
+export interface TabInfo extends Document {
+  isActive: boolean;
+  pageNumber?: number; // Optional page number when tab was last viewed
+  citationSnippet?: string | null; // Optional citation snippet when tab was last viewed
   isLoading: boolean;
 }
 
@@ -59,19 +50,20 @@ export interface DocumentViewerState {
 }
 
 // FetchDocumentFn for the new model
-export type FetchDocumentFn = (id: string) => Promise<Document>;
+export type FetchDocumentFn = (sourceLink: string) => Promise<Document>;
 
 // DocumentViewerContextValue for the new model
 export interface DocumentViewerContextValue extends DocumentViewerState {
   updateDocumentViewer: (updates: Partial<DocumentViewerState>) => void;
   setDocument: (document: Document | null) => void;
   highlightElement: (elementId: string) => void;
-  loadDocument: (sourceLink: string, id?: string, citationSnippet?: string) => Promise<void>;
+  loadDocument: (sourceLink: string, highlightId?: string, citationSnippet?: string) => Promise<void>;
   setFetchDocumentFn: (fn: FetchDocumentFn) => void;
   openViewer: () => void;
   closeViewer: () => void;
-  selectTab: (id: string) => void;
-  closeTab: (id: string) => void;
+  selectTab: (sourceLink: string) => void;
+  closeTab: (sourceLink: string) => void;
+  reorderTabs: (newTabsOrder: TabInfo[]) => void;
   setZoomLevel: (level: number) => void;
   zoomIn: () => void;
   zoomOut: () => void;

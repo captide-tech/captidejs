@@ -7,4 +7,11 @@ export {
   useDocumentViewer
 } from './contexts/document-viewer-context'; 
 
-export type { Document, FetchDocumentFn } from './types'; 
+export type { 
+  Document, 
+  TabInfo,
+  DocumentViewerState,
+  DocumentViewerContextValue,
+  FetchDocumentFn,
+  FileType
+} from './types'; 
