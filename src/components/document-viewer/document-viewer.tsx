@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { useDocumentViewer } from '@contexts/document-viewer-context';
 import PDFViewer from '@components/document-viewer/pdf-viewer';
 import SpreadsheetViewer from '@components/document-viewer/spreadsheet-viewer';
+import Loader from '@components/document-viewer/shared/loader';
 
 const DocumentViewer: React.FC<{ className?: string; style?: React.CSSProperties }> = ({
   className = 'w-full h-full',
@@ -26,9 +27,7 @@ const DocumentViewer: React.FC<{ className?: string; style?: React.CSSProperties
 
   if (!document || isLoading) {
     return (
-      <div className="w-full h-full flex items-center justify-center" style={{ background: 'white' }}>
-        <div className="text-lg text-gray-500">{isLoading ? 'Loading document...' : 'No document loaded'}</div>
-      </div>
+      <Loader message={isLoading ? 'Loading document...' : 'No document loaded'} />
     );
   }
 

@@ -134,7 +134,7 @@ export const createRectangleHighlight = async (
   }
 
   return new Promise((resolve) => {
-    setTimeout(async () => {
+    (async () => {
       const currentPageView = pdfViewerInstance.getPageView(result.page - 1);
       if (!currentPageView?.div) {
         resolve(null);
@@ -196,14 +196,8 @@ export const createRectangleHighlight = async (
         text: searchText
       };
       
-      // Scroll to the highlight
-      highlightElement.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'center' 
-      });
-      
       resolve(highlight);
-    }, 500);
+    })();
   });
 };
 

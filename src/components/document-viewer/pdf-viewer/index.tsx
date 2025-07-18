@@ -3,6 +3,7 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 import DownloadButton from '@components/document-viewer/shared/download-button';
 import PageIndicator from '@components/document-viewer/pdf-viewer/page-indicator';
 import { createRectangleHighlight, removeHighlight, type CurrentHighlight } from '@utils/pdf-highlighting';
+import Loader from '@components/document-viewer/shared/loader';
 
 interface PDFViewerProps {
   sasUrl: string;
@@ -357,32 +358,25 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
       if (currentHighlight && currentHighlight.text === citationSnippet) {
         return;
       }
-      
-      const timer = setTimeout(async () => {
-        let targetPage: number | undefined;
-        
-        if (highlightedElementId) {
-          const match = highlightedElementId.match(/(\d{4})$/);
-          if (match) {
-            targetPage = parseInt(match[1], 10) + 1; // PDF.js is 1-based
-          }
+      let targetPage: number | undefined;
+      if (highlightedElementId) {
+        const match = highlightedElementId.match(/(\d{4})$/);
+        if (match) {
+          targetPage = parseInt(match[1], 10) + 1; // PDF.js is 1-based
         }
-        
+      }
+      (async () => {
         const newHighlight = await createRectangleHighlight(
           citationSnippet, 
           viewer, 
           targetPage, 
           currentHighlight
         );
-        
         if (newHighlight) {
-          // Remove old highlight if it exists
           removeCurrentHighlight();
           setCurrentHighlight(newHighlight);
         }
-      }, 1000);
-      
-      return () => clearTimeout(timer);
+      })();
     }
   }, [citationSnippet, viewer, isLoading, highlightedElementId, currentHighlight, removeCurrentHighlight]);
 
@@ -461,28 +455,8 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
       
       {/* Loading spinner */}
       {isLoading && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ backgroundColor: 'white' }}>
-          <div style={{ 
-            width: '40px', 
-            height: '40px', 
-            border: '3px solid #f3f3f3',
-            borderTop: '3px solid #475569',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-            marginBottom: '20px'
-          }} />
-          <style>
-            {`
-            @keyframes spin {
-              0% { transform: rotate(0deg); }
-              100% { transform: rotate(360deg); }
-            }
-            `}
-          </style>
-          <div className="text-gray-600 font-medium text-lg mb-2">Loading PDF...</div>
-          <div className="text-gray-400 text-sm">
-            {numPages === 0 ? 'Preparing document...' : `Loading ${numPages} pages...`}
-          </div>
+        <div className="absolute inset-0">
+          <Loader message="Loading document..." />
         </div>
       )}
       
