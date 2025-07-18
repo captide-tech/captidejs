@@ -1,7 +1,0 @@
-Azure Storage CORS Configuration Required:
-Go to Azure Portal > Storage Account > Settings > CORS
-Add the following CORS rule:
-Allowed origins: http://localhost:3000,https://yourdomain.com
-Allowed methods: GET,HEAD,OPTIONS
-Allowed headers: Origin,Content-Type,Accept,Authorization,Range,Content-Disposition,Cache-Control
-Exposed headers: Content-Length,Content-Range,Accept-Ranges,Access-Control-Allow-Origin

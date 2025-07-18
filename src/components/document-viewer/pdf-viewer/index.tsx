@@ -1,36 +1,16 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { extractPageNumberFromElementId } from './utils/pageUtils';
-import DownloadButton from './components/DownloadButton';
-import PageIndicator from './components/PageIndicator';
-
-// Import types from the pdfjs-dist package (using the types directory)
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
-
-// We'll declare these minimal interfaces to avoid import errors,
-// while still providing type checking for our component
-interface ViewerEventBus {
-  on(eventName: string, listener: Function): void;
-  off(eventName: string, listener?: Function): void;
-}
-
-interface ViewerLinkService {
-  setDocument(pdfDocument: PDFDocumentProxy): void;
-  setViewer(pdfViewer: ViewerPdfViewer): void;
-}
-
-interface ViewerPdfViewer {
-  setDocument(pdfDocument: PDFDocumentProxy): void;
-  currentScaleValue: number | string;
-  currentPageNumber: number;
-  getPageView(pageIndex: number): { div: HTMLElement } | undefined;
-}
+import DownloadButton from '@components/document-viewer/shared/download-button';
+import PageIndicator from '@components/document-viewer/pdf-viewer/page-indicator';
+import { createRectangleHighlight, removeHighlight, type CurrentHighlight } from '@utils/pdf-highlighting';
 
 interface PDFViewerProps {
   sasUrl: string;
   className?: string;
   style?: React.CSSProperties;
-  zoomLevel: number;
+  zoomLevel?: number | string;
   highlightedElementId?: string | null;
+  citationSnippet?: string | null;
 }
 
 // Simple placeholder for SSR
@@ -61,8 +41,9 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
   sasUrl,
   className = 'w-full h-full',
   style,
-  zoomLevel = 1.0,
-  highlightedElementId = null
+  zoomLevel,
+  highlightedElementId = null,
+  citationSnippet = null
 }) => {
   const viewerContainerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -71,15 +52,41 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [pdfJsLoaded, setPdfJsLoaded] = useState(false);
   const [viewer, setViewer] = useState<any>(null);
+  const [currentHighlight, setCurrentHighlight] = useState<CurrentHighlight | null>(null);
   
   // Only run in browser
   const isBrowser = typeof window !== 'undefined';
-  
+
+  // Add highlighting styles
+  if (typeof window !== 'undefined' && !document.getElementById('pdf-rectangle-highlight-style')) {
+    const style = document.createElement('style');
+    style.id = 'pdf-rectangle-highlight-style';
+    style.textContent = `
+      .pdf-rectangle-highlight {
+        position: absolute !important;
+        background: rgba(255, 235, 59, 0.3) !important;
+        border: 2px solid #fdcb6e !important;
+        border-radius: 3px !important;
+        pointer-events: none !important;
+        z-index: 1000 !important;
+        box-shadow: 0 2px 8px rgba(253, 203, 110, 0.3) !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  // Remove current highlight
+  const removeCurrentHighlight = useCallback(() => {
+    if (currentHighlight) {
+      removeHighlight(currentHighlight);
+      setCurrentHighlight(null);
+    }
+  }, [currentHighlight]);
+
   // Handle download functionality
   const handleDownload = () => {
     if (!sasUrl) return;
     
-    // Attempt to download using fetch and blob
     fetch(sasUrl)
       .then(response => {
         if (!response.ok) {
@@ -88,23 +95,17 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
         return response.blob();
       })
       .then(blob => {
-        // Create a blob URL
         const blobUrl = window.URL.createObjectURL(blob);
-        
-        // Create a temporary anchor element
         const a = document.createElement('a');
         a.href = blobUrl;
         
-        // Set download attribute with filename
         let filename = 'document.pdf';
         try {
-          // Try to extract filename from sasUrl if possible
           const urlObj = new URL(sasUrl);
           const pathParts = urlObj.pathname.split('/');
           const potentialFilename = pathParts[pathParts.length - 1];
           
           if (potentialFilename && potentialFilename.includes('.pdf')) {
-            // Remove URL encoded characters if present
             filename = decodeURIComponent(potentialFilename.split('?')[0]);
           }
         } catch (e) {
@@ -112,17 +113,12 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
         }
         
         a.download = filename;
-        
-        // Trigger download
         document.body.appendChild(a);
         a.click();
-        
-        // Clean up
         window.URL.revokeObjectURL(blobUrl);
         document.body.removeChild(a);
       })
       .catch(error => {
-        // Fallback: open in new window if download fails
         window.open(sasUrl, '_blank');
       });
   };
@@ -134,10 +130,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
 
     const loadPdfJs = async () => {
       try {
-        // Import PDF.js
         const pdfjsLib = await import('pdfjs-dist');
-        
-        // Set worker source
         const { GlobalWorkerOptions } = await import('pdfjs-dist');
         const workerUrl = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
         GlobalWorkerOptions.workerSrc = workerUrl;
@@ -215,10 +208,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
         setIsLoading(true);
         setError(null);
         
-        // Dynamic imports for viewer components
         const pdfjsLib = await import('pdfjs-dist');
-        
-        // Import the web viewer components (.mjs file extension is important)
         const viewerModule = await import('pdfjs-dist/web/pdf_viewer.mjs');
         
         if (!mounted || !viewerContainerRef.current) return;
@@ -244,8 +234,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
           eventBus: eventBusInstance,
         });
         
-        // Create viewer - using only options supported by PDFViewerOptions type
-        // Use @ts-ignore to bypass TypeScript type checking since we're using dynamic imports
+        // Create viewer
         // @ts-ignore
         pdfViewerInstance = new viewerModule.PDFViewer({
           container: viewerContainer,
@@ -253,7 +242,6 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
           eventBus: eventBusInstance,
           linkService: pdfLinkService,
           textLayerMode: 2, // Enable text layer
-          // Other options handled by our custom CSS
           removePageBorders: false,
         });
         
@@ -262,14 +250,47 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
         // Set up event listeners
         eventBusInstance.on('pagesinit', () => {
           // Set initial zoom level
-          if (pdfViewerInstance) {
-            pdfViewerInstance.currentScaleValue = zoomLevel;
+          if (pdfViewerInstance && zoomLevel !== undefined) {
+            if (typeof zoomLevel === 'string') {
+              pdfViewerInstance.currentScaleValue = zoomLevel;
+            } else {
+              pdfViewerInstance.currentScale = zoomLevel;
+            }
+          }
+          
+          // Navigate to specific page if highlightedElementId is provided
+          if (highlightedElementId && pdfViewerInstance && mounted) {
+            const match = highlightedElementId.match(/(\d{4})$/);
+            let pageNum = 1;
+            if (match) {
+              pageNum = parseInt(match[1], 10) + 1; // PDF.js is 1-based
+            }
+            
+            // Validate page number is within bounds
+            if (pageNum >= 1 && pageNum <= pdfViewerInstance.pagesCount) {
+              pdfViewerInstance.currentPageNumber = Number(pageNum);
+              
+              // Highlight the page after a short delay
+              setTimeout(() => {
+                if (mounted && pdfViewerInstance) {
+                  const pageDiv = pdfViewerInstance.getPageView(pageNum - 1)?.div;
+                  if (pageDiv) {
+                    pageDiv.classList.add('highlighted');
+                    pageDiv.scrollIntoView({ 
+                      behavior: 'smooth', 
+                      block: 'center' 
+                    });
+                  }
+                }
+              }, 200);
+            }
           }
         });
         
         eventBusInstance.on('pagechanging', (evt: any) => {
           if (mounted) {
-            setCurrentPage(evt.pageNumber || 1);
+            const pageNumber = parseInt(evt.pageNumber, 10) || 1;
+            setCurrentPage(pageNumber);
           }
         });
         
@@ -281,11 +302,6 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
           cMapPacked: true,
         });
         
-        // Progress tracking
-        loadingTask.onProgress = (data: { loaded: number; total: number }) => {
-          // Tracking occurs without logging
-        };
-        
         pdfDocumentInstance = await loadingTask.promise;
         
         if (!mounted || !pdfViewerInstance) return;
@@ -293,37 +309,19 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
         // Set the document in the viewer
         pdfViewerInstance.setDocument(pdfDocumentInstance);
         pdfLinkService.setDocument(pdfDocumentInstance);
-        
+
         setNumPages(pdfDocumentInstance.numPages);
         setViewer(pdfViewerInstance);
-        
-        // Check if we need to jump to a specific page based on highlightedElementId
-        if (highlightedElementId) {
-          const pageNumber = extractPageNumberFromElementId(highlightedElementId);
-          if (pageNumber !== null) {
-            // extractPageNumberFromElementId returns 0-indexed, but PDF.js uses 1-indexed
-            const oneBasedPageNumber = pageNumber + 1;
-            
-            // Wait for pages to render, then scroll
-            setTimeout(() => {
-              if (pdfViewerInstance && mounted) {
-                pdfViewerInstance.currentPageNumber = oneBasedPageNumber;
-                
-                // Highlight the page
-                setTimeout(() => {
-                  if (mounted && pdfViewerInstance) {
-                    const pageDiv = pdfViewerInstance.getPageView(pageNumber)?.div;
-                    if (pageDiv) {
-                      pageDiv.classList.add('highlighted');
-                    }
-                  }
-                }, 100);
-              }
-            }, 100);
+
+        // Set zoom after document is loaded
+        if (pdfViewerInstance && zoomLevel !== undefined) {
+          if (typeof zoomLevel === 'string') {
+            pdfViewerInstance.currentScaleValue = zoomLevel;
+          } else {
+            pdfViewerInstance.currentScale = zoomLevel;
           }
         }
         
-        // Only set loading to false once everything is properly set up
         if (mounted) {
           setIsLoading(false);
         }
@@ -352,12 +350,97 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
     };
   }, [sasUrl, pdfJsLoaded, zoomLevel, highlightedElementId, isBrowser]);
 
+  // Handle text highlighting when citationSnippet changes
+  useEffect(() => {
+    if (citationSnippet && viewer && !isLoading) {
+      // Check if we already have a highlight for this exact text
+      if (currentHighlight && currentHighlight.text === citationSnippet) {
+        return;
+      }
+      
+      const timer = setTimeout(async () => {
+        let targetPage: number | undefined;
+        
+        if (highlightedElementId) {
+          const match = highlightedElementId.match(/(\d{4})$/);
+          if (match) {
+            targetPage = parseInt(match[1], 10) + 1; // PDF.js is 1-based
+          }
+        }
+        
+        const newHighlight = await createRectangleHighlight(
+          citationSnippet, 
+          viewer, 
+          targetPage, 
+          currentHighlight
+        );
+        
+        if (newHighlight) {
+          // Remove old highlight if it exists
+          removeCurrentHighlight();
+          setCurrentHighlight(newHighlight);
+        }
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [citationSnippet, viewer, isLoading, highlightedElementId, currentHighlight, removeCurrentHighlight]);
+
+  // Clean up highlight when citationSnippet becomes null
+  useEffect(() => {
+    if (!citationSnippet && currentHighlight) {
+      removeCurrentHighlight();
+    }
+  }, [citationSnippet, currentHighlight, removeCurrentHighlight]);
+
+  // Handle highlightedElementId changes after viewer is loaded
+  useEffect(() => {
+    if (highlightedElementId && viewer && !isLoading && numPages > 0) {
+      const match = highlightedElementId.match(/(\d{4})$/);
+      let pageNum = 1;
+      if (match) {
+        pageNum = parseInt(match[1], 10) + 1; // PDF.js is 1-based
+      }
+      
+              // Validate page number is within bounds
+        if (pageNum >= 1 && pageNum <= viewer.pagesCount) {
+          viewer.currentPageNumber = Number(pageNum);
+        
+        setTimeout(() => {
+          if (viewer) {
+            const pageDiv = viewer.getPageView(pageNum - 1)?.div;
+            if (pageDiv) {
+              pageDiv.classList.add('highlighted');
+              pageDiv.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'center' 
+              });
+            }
+          }
+        }, 200);
+      }
+    }
+  }, [highlightedElementId, viewer, isLoading, numPages]);
+
   // Update zoom level when it changes
   useEffect(() => {
-    if (viewer && typeof zoomLevel === 'number') {
-      viewer.currentScaleValue = zoomLevel;
+    if (viewer && zoomLevel !== undefined) {
+      if (typeof zoomLevel === 'string') {
+        viewer.currentScaleValue = zoomLevel;
+      } else {
+        viewer.currentScale = zoomLevel;
+      }
     }
   }, [viewer, zoomLevel]);
+
+  // Clean up highlight on unmount
+  useEffect(() => {
+    return () => {
+      if (currentHighlight) {
+        removeHighlight(currentHighlight);
+      }
+    };
+  }, [currentHighlight]);
   
   // Render for SSR
   if (!isBrowser) {

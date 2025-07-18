@@ -2,10 +2,12 @@ import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import typescript from '@rollup/plugin-typescript';
 import peerDepsExternal from 'rollup-plugin-peer-deps-external';
-import { terser } from 'rollup-plugin-terser';
 import replace from '@rollup/plugin-replace';
+import alias from '@rollup/plugin-alias';
+import path from 'path';
 
 const packageJson = require('./package.json');
+const isProduction = process.env.NODE_ENV === 'production';
 
 const config = {
   input: 'src/index.ts',
@@ -19,6 +21,16 @@ const config = {
   plugins: [
     // Don't bundle peer dependencies
     peerDepsExternal(),
+    
+    // Handle TypeScript path mappings
+    alias({
+      entries: [
+        { find: '@components', replacement: path.resolve(__dirname, 'src/components') },
+        { find: '@contexts', replacement: path.resolve(__dirname, 'src/contexts') },
+        { find: '@types', replacement: path.resolve(__dirname, 'src/types/index.ts') }
+        // Removed @utils alias as the directory no longer exists
+      ]
+    }),
     
     // Replace certain text in files
     replace({
@@ -42,7 +54,7 @@ const config = {
     }),
     
     // Minify the output
-    terser()
+    ...(isProduction ? [require('rollup-plugin-terser').terser()] : [])
   ]
 }; 
 

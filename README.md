@@ -19,10 +19,71 @@ Captide enables precise querying across over millions filings and earnings calls
 
 This npm package provides a document viewer designed to display source documents obtained via Captide's REST API. It is specifically developed to support source linking to answers given by Captide's AI agents that perform Q&A over financial disclosures. The viewer can display HTML, PDF, or XLSX documents and automatically scroll and highlight specific parts in these source documents that correspond to parts of the answer obtained through the API. This helps attribute the AI agent's outputs—such as specific sentences or metrics—directly to their original sources, rendering SEC filings, earnings call transcripts, and international disclosures with precise highlighting of relevant sections.
 
-## Getting Started
+# Yarn Usage
 
-```bash
-npm install captide
+This project now uses [Yarn](https://yarnpkg.com/) as its package manager. Please use the following commands:
+
+## Install dependencies
+
+```sh
+yarn install
+```
+
+## Run the development server
+
+```sh
+yarn start
+```
+
+## Build for production
+
+```sh
+yarn build
+```
+
+## Usage Examples
+
+### Basic Document Loading
+
+```javascript
+import { useDocumentViewer } from '@contexts/document-viewer-context';
+
+const { loadDocument } = useDocumentViewer();
+
+// Load a document by ID
+await loadDocument('document-id-123');
+```
+
+### Document Loading with Citation Highlighting
+
+```javascript
+import { useDocumentViewer } from '@contexts/document-viewer-context';
+
+const { loadDocument } = useDocumentViewer();
+
+// Load a document and highlight specific text
+await loadDocument(
+  'document-id-123', 
+  'element-id-456', 
+  'Total net sales $95,359 $90,753 $219,659 $210,328'
+);
+```
+
+The citation snippet feature provides intelligent text search that can handle:
+- **Table data with varying spacing** (e.g., financial data in rows)
+- **Fuzzy matching** when exact text isn't found
+- **Cross-page search** if the text appears on different pages
+- **Visual highlighting** with animated overlays
+
+### Advanced Usage
+
+```javascript
+// Load document with specific element highlighting and citation
+await loadDocument(
+  'https://api.captide.co/documents/123', 
+  'highlight-element-789',
+  'Revenue increased 15% year-over-year to $2.5 billion'
+);
 ```
 
 ## API Access
