@@ -55,7 +55,7 @@ export const findTextInPDF = async (
   pdfViewerInstance: any, 
   targetPage?: number
 ): Promise<HighlightResult | null> => {
-  if (!searchText || !pdfViewerInstance) return null;
+  if (!searchText || !pdfViewerInstance || !pdfViewerInstance.pagesCount) return null;
 
   const pagesToSearch = targetPage 
     ? [targetPage] 
@@ -116,7 +116,7 @@ export const createRectangleHighlight = async (
   targetPage?: number,
   currentHighlight?: CurrentHighlight | null
 ): Promise<CurrentHighlight | null> => {
-  if (!searchText || !pdfViewerInstance) return null;
+  if (!searchText || !pdfViewerInstance || !pdfViewerInstance.pagesCount) return null;
 
   // Check if we already have a highlight for the same text and page
   if (currentHighlight && 
@@ -130,7 +130,14 @@ export const createRectangleHighlight = async (
 
   // Navigate to the page if needed
   if (result.page !== pdfViewerInstance.currentPageNumber) {
-    pdfViewerInstance.currentPageNumber = Number(result.page);
+    try {
+      const pageNumber = Number(result.page);
+      if (pageNumber >= 1 && pageNumber <= pdfViewerInstance.pagesCount) {
+        pdfViewerInstance.currentPageNumber = pageNumber;
+      }
+    } catch (err) {
+      console.warn('Failed to navigate to page for highlighting:', result.page, err);
+    }
   }
 
   return new Promise((resolve) => {

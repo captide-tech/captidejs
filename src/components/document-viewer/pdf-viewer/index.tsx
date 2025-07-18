@@ -257,16 +257,17 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
             }
           }
           
-          // Navigate to specific page if highlightedElementId is provided
-          if (highlightedElementId && pdfViewerInstance && mounted) {
-            const match = highlightedElementId.match(/(\d{4})$/);
-            let pageNum = 1;
-            if (match) {
-              pageNum = parseInt(match[1], 10) + 1; // PDF.js is 1-based
-            }
-            
-            // Validate page number is within bounds
-            if (pageNum >= 1 && pageNum <= pdfViewerInstance.pagesCount) {
+                  // Navigate to specific page if highlightedElementId is provided
+        if (highlightedElementId && pdfViewerInstance && mounted) {
+          const match = highlightedElementId.match(/(\d{4})$/);
+          let pageNum = 1;
+          if (match) {
+            pageNum = parseInt(match[1], 10) + 1; // PDF.js is 1-based
+          }
+          
+          // Validate page number is within bounds
+          if (pageNum >= 1 && pageNum <= pdfViewerInstance.pagesCount) {
+            try {
               pdfViewerInstance.currentPageNumber = Number(pageNum);
               
               // Highlight the page after a short delay
@@ -282,8 +283,11 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
                   }
                 }
               }, 200);
+            } catch (err) {
+              console.warn('Failed to navigate to page:', pageNum, err);
             }
           }
+        }
         });
         
         eventBusInstance.on('pagechanging', (evt: any) => {
@@ -312,13 +316,22 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
         setNumPages(pdfDocumentInstance.numPages);
         setViewer(pdfViewerInstance);
 
-        // Set zoom after document is loaded
-        if (pdfViewerInstance && zoomLevel !== undefined) {
-          if (typeof zoomLevel === 'string') {
-            pdfViewerInstance.currentScaleValue = zoomLevel;
-          } else {
-            pdfViewerInstance.currentScale = zoomLevel;
-          }
+        // Set zoom after document is loaded - with delay to ensure pages are ready
+        if (pdfViewerInstance && zoomLevel !== undefined && pdfViewerInstance.pagesCount > 0) {
+          setTimeout(() => {
+            if (pdfViewerInstance && mounted && pdfViewerInstance.pagesCount > 0) {
+              try {
+                if (typeof zoomLevel === 'string') {
+                  pdfViewerInstance.currentScaleValue = zoomLevel;
+                } else {
+                  pdfViewerInstance.currentScale = zoomLevel;
+                }
+              } catch (err) {
+                // Silently handle zoom setting errors
+                console.warn('Failed to set zoom level:', err);
+              }
+            }
+          }, 100);
         }
         
         if (mounted) {
@@ -396,31 +409,40 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
       
               // Validate page number is within bounds
         if (pageNum >= 1 && pageNum <= viewer.pagesCount) {
-          viewer.currentPageNumber = Number(pageNum);
-        
-        setTimeout(() => {
-          if (viewer) {
-            const pageDiv = viewer.getPageView(pageNum - 1)?.div;
-            if (pageDiv) {
-              pageDiv.classList.add('highlighted');
-              pageDiv.scrollIntoView({ 
-                behavior: 'smooth', 
-                block: 'center' 
-              });
-            }
+          try {
+            viewer.currentPageNumber = Number(pageNum);
+            
+            setTimeout(() => {
+              if (viewer) {
+                const pageDiv = viewer.getPageView(pageNum - 1)?.div;
+                if (pageDiv) {
+                  pageDiv.classList.add('highlighted');
+                  pageDiv.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'center' 
+                  });
+                }
+              }
+            }, 200);
+          } catch (err) {
+            console.warn('Failed to navigate to page:', pageNum, err);
           }
-        }, 200);
-      }
+        }
     }
   }, [highlightedElementId, viewer, isLoading, numPages]);
 
   // Update zoom level when it changes
   useEffect(() => {
-    if (viewer && zoomLevel !== undefined) {
-      if (typeof zoomLevel === 'string') {
-        viewer.currentScaleValue = zoomLevel;
-      } else {
-        viewer.currentScale = zoomLevel;
+    if (viewer && zoomLevel !== undefined && viewer.pagesCount > 0) {
+      try {
+        if (typeof zoomLevel === 'string') {
+          viewer.currentScaleValue = zoomLevel;
+        } else {
+          viewer.currentScale = zoomLevel;
+        }
+      } catch (err) {
+        // Silently handle zoom setting errors
+        console.warn('Failed to set zoom level:', err);
       }
     }
   }, [viewer, zoomLevel]);
