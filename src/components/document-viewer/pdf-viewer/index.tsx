@@ -25,7 +25,6 @@ const PDFPlaceholder: React.FC<{className?: string; style?: React.CSSProperties}
     alignItems: 'center',
     justifyContent: 'center',
     padding: '20px',
-    background: '#f5f5f5',
     color: '#666'
   }}>
     PDF viewer loading...
@@ -164,7 +163,6 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
               width: 100%;
               height: 100%;
               overflow: auto;
-              background-color: #f8f9fa;
             }
             .pdfViewer .page {
               margin: 15px auto;
