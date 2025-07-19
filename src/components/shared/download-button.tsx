@@ -1,46 +1,43 @@
 import React from 'react';
 
-interface SourceButtonProps {
+interface DownloadButtonProps {
   onClick: () => void;
-  domain: string;
   style?: React.CSSProperties;
   className?: string;
 }
 
 /**
- * A standardized source button component for document viewers
- * 
- * Used to provide a link to the original source of a document
+ * A simple icon-only download button component
  */
-const SourceButton: React.FC<SourceButtonProps> = ({
+const DownloadButton: React.FC<DownloadButtonProps> = ({
   onClick,
-  domain,
   style = {},
   className = ''
 }) => {
   const buttonStyle: React.CSSProperties = {
-    padding: '6px 12px',
-    backgroundColor: '#ffffff',
-    color: '#475569',
-    border: '1px solid #cbd5e1',
+    width: '32px',
+    height: '32px',
+    padding: '8px',
     borderRadius: '4px',
     cursor: 'pointer',
-    fontWeight: 'bold',
     display: 'flex',
     alignItems: 'center',
-    gap: '4px',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    color: '#475569',
+    border: '1px solid rgba(203, 213, 225, 0.5)',
     boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
     transition: 'background-color 0.2s ease',
-    fontSize: '12px',
     ...style
   };
   
+  // Handle hover states
   const handleMouseOver = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.currentTarget.style.backgroundColor = '#f8fafc';
   };
   
   const handleMouseOut = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.currentTarget.style.backgroundColor = '#ffffff';
+    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
   };
   
   return (
@@ -50,12 +47,12 @@ const SourceButton: React.FC<SourceButtonProps> = ({
       className={className}
       onMouseOver={handleMouseOver}
       onMouseOut={handleMouseOut}
-      title={`Open original source website: ${domain}`}
+      title="Download PDF"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        width="14"
-        height="14"
+        width="16"
+        height="16"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -63,13 +60,12 @@ const SourceButton: React.FC<SourceButtonProps> = ({
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-        <polyline points="15 3 21 3 21 9"></polyline>
-        <line x1="10" y1="14" x2="21" y2="3"></line>
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
       </svg>
-      Source: {domain}
     </button>
   );
 };
 
-export default SourceButton; 
+export default DownloadButton; 

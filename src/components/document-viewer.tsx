@@ -1,18 +1,9 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { useDocumentViewer } from '@contexts/document-viewer-context';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
-import DownloadButton from '@components/document-viewer/shared/download-button';
-import PageIndicator from '@components/document-viewer/pdf-viewer/page-indicator';
 import { createRectangleHighlight, removeHighlight, type CurrentHighlight } from '@utils/pdf-highlighting';
-import Loader from '@components/document-viewer/shared/loader';
-
-interface PDFViewerProps {
-  sasUrl: string;
-  className?: string;
-  style?: React.CSSProperties;
-  zoomLevel?: number | string;
-  highlightedElementId?: string | null;
-  citationSnippet?: string | null;
-}
+import Loader from '@components/shared/loader';
+import DownloadButton from '@components/shared/download-button';
 
 // Simple placeholder for SSR
 const PDFPlaceholder: React.FC<{className?: string; style?: React.CSSProperties}> = ({
@@ -31,22 +22,28 @@ const PDFPlaceholder: React.FC<{className?: string; style?: React.CSSProperties}
   </div>
 );
 
-/**
- * PDF Viewer Component using PDF.js
- * 
- * Renders PDFs from SAS URLs with robust error handling and high-quality rendering.
- * Leverages PDF.js's built-in lazy loading capabilities.
- */
-const PDFViewer: React.FC<PDFViewerProps> = ({
-  sasUrl,
+interface DocumentViewerProps {
+  className?: string;
+  style?: React.CSSProperties;
+}
+
+const DocumentViewer: React.FC<DocumentViewerProps> = ({
   className = 'w-full h-full',
   style,
-  zoomLevel,
-  highlightedElementId = null,
-  citationSnippet = null
 }) => {
+  const { 
+    document: pdfDocument, 
+    isLoading, 
+    zoomLevel, 
+    zoomIn, 
+    zoomOut, 
+    resetZoom,
+    highlightedElementId, 
+    citationSnippet 
+  } = useDocumentViewer();
+  
+  const containerRef = useRef<HTMLDivElement>(null);
   const viewerContainerRef = useRef<HTMLDivElement>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -85,9 +82,9 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
 
   // Handle download functionality
   const handleDownload = () => {
-    if (!sasUrl) return;
+    if (!pdfDocument?.originalFileUrl) return;
     
-    fetch(sasUrl)
+    fetch(pdfDocument.originalFileUrl)
       .then(response => {
         if (!response.ok) {
           throw new Error('Network response was not ok');
@@ -101,7 +98,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
         
         let filename = 'document.pdf';
         try {
-          const urlObj = new URL(sasUrl);
+          const urlObj = new URL(pdfDocument.originalFileUrl);
           const pathParts = urlObj.pathname.split('/');
           const potentialFilename = pathParts[pathParts.length - 1];
           
@@ -119,10 +116,53 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
         document.body.removeChild(a);
       })
       .catch(error => {
-        window.open(sasUrl, '_blank');
+        window.open(pdfDocument.originalFileUrl, '_blank');
       });
   };
-  
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        switch (e.key) {
+          case '=':
+          case '+':
+            e.preventDefault();
+            zoomIn();
+            break;
+          case '-':
+            e.preventDefault();
+            zoomOut();
+            break;
+          case '0':
+            e.preventDefault();
+            resetZoom();
+            break;
+        }
+      }
+    };
+    
+    el.addEventListener('keydown', handler);
+    return () => el.removeEventListener('keydown', handler);
+  }, [zoomIn, zoomOut, resetZoom]);
+
+  // Handle wheel zoom
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+        e.deltaY < 0 ? zoomIn() : zoomOut();
+      }
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, [zoomIn, zoomOut]);
+
   // Initialize PDF.js in browser
   useEffect(() => {
     if (!isBrowser) return;
@@ -181,7 +221,6 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
       } catch (err) {
         if (mounted) {
           setError(`Failed to load PDF.js: ${err instanceof Error ? err.message : String(err)}`);
-          setIsLoading(false);
         }
       }
     };
@@ -193,9 +232,9 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
     };
   }, [isBrowser]);
 
-  // Load and render PDF when URL changes and PDF.js is loaded
+  // Load and render PDF when document changes and PDF.js is loaded
   useEffect(() => {
-    if (!isBrowser || !sasUrl || !pdfJsLoaded || !viewerContainerRef.current) return;
+    if (!isBrowser || !pdfDocument?.originalFileUrl || !pdfJsLoaded || !viewerContainerRef.current) return;
     
     let mounted = true;
     let pdfViewerInstance: any = null;
@@ -204,7 +243,6 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
     
     const loadAndRenderPdf = async () => {
       try {
-        setIsLoading(true);
         setError(null);
         
         const pdfjsLib = await import('pdfjs-dist');
@@ -234,7 +272,6 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
         });
         
         // Create viewer
-        // @ts-ignore
         pdfViewerInstance = new viewerModule.PDFViewer({
           container: viewerContainer,
           viewer: viewerElement,
@@ -257,37 +294,37 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
             }
           }
           
-                  // Navigate to specific page if highlightedElementId is provided
-        if (highlightedElementId && pdfViewerInstance && mounted) {
-          const match = highlightedElementId.match(/(\d{4})$/);
-          let pageNum = 1;
-          if (match) {
-            pageNum = parseInt(match[1], 10) + 1; // PDF.js is 1-based
-          }
-          
-          // Validate page number is within bounds
-          if (pageNum >= 1 && pageNum <= pdfViewerInstance.pagesCount) {
-            try {
-              pdfViewerInstance.currentPageNumber = Number(pageNum);
-              
-              // Highlight the page after a short delay
-              setTimeout(() => {
-                if (mounted && pdfViewerInstance) {
-                  const pageDiv = pdfViewerInstance.getPageView(pageNum - 1)?.div;
-                  if (pageDiv) {
-                    pageDiv.classList.add('highlighted');
-                    pageDiv.scrollIntoView({ 
-                      behavior: 'smooth', 
-                      block: 'center' 
-                    });
+          // Navigate to specific page if highlightedElementId is provided
+          if (highlightedElementId && pdfViewerInstance && mounted) {
+            const match = highlightedElementId.match(/(\d{4})$/);
+            let pageNum = 1;
+            if (match) {
+              pageNum = parseInt(match[1], 10) + 1; // PDF.js is 1-based
+            }
+            
+            // Validate page number is within bounds
+            if (pageNum >= 1 && pageNum <= pdfViewerInstance.pagesCount) {
+              try {
+                pdfViewerInstance.currentPageNumber = Number(pageNum);
+                
+                // Highlight the page after a short delay
+                setTimeout(() => {
+                  if (mounted && pdfViewerInstance) {
+                    const pageDiv = pdfViewerInstance.getPageView(pageNum - 1)?.div;
+                    if (pageDiv) {
+                      pageDiv.classList.add('highlighted');
+                      pageDiv.scrollIntoView({ 
+                        behavior: 'smooth', 
+                        block: 'center' 
+                      });
+                    }
                   }
-                }
-              }, 200);
-            } catch (err) {
-              console.warn('Failed to navigate to page:', pageNum, err);
+                }, 200);
+              } catch (err) {
+                console.warn('Failed to navigate to page:', pageNum, err);
+              }
             }
           }
-        }
         });
         
         eventBusInstance.on('pagechanging', (evt: any) => {
@@ -299,7 +336,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
         
         // Load the document
         const loadingTask = pdfjsLib.getDocument({
-          url: sasUrl,
+          url: pdfDocument.originalFileUrl,
           withCredentials: false,
           cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
           cMapPacked: true,
@@ -333,14 +370,9 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
             }
           }, 100);
         }
-        
-        if (mounted) {
-          setIsLoading(false);
-        }
       } catch (err) {
         if (mounted) {
           setError(`Failed to load or render PDF: ${err instanceof Error ? err.message : String(err)}`);
-          setIsLoading(false);
         }
       }
     };
@@ -360,7 +392,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
         pdfDocumentInstance.destroy();
       }
     };
-  }, [sasUrl, pdfJsLoaded, zoomLevel, highlightedElementId, isBrowser]);
+  }, [pdfDocument?.originalFileUrl, pdfJsLoaded, zoomLevel, highlightedElementId, isBrowser]);
 
   // Handle text highlighting when citationSnippet changes
   useEffect(() => {
@@ -407,27 +439,27 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
         pageNum = parseInt(match[1], 10) + 1; // PDF.js is 1-based
       }
       
-              // Validate page number is within bounds
-        if (pageNum >= 1 && pageNum <= viewer.pagesCount) {
-          try {
-            viewer.currentPageNumber = Number(pageNum);
-            
-            setTimeout(() => {
-              if (viewer) {
-                const pageDiv = viewer.getPageView(pageNum - 1)?.div;
-                if (pageDiv) {
-                  pageDiv.classList.add('highlighted');
-                  pageDiv.scrollIntoView({ 
-                    behavior: 'smooth', 
-                    block: 'center' 
-                  });
-                }
+      // Validate page number is within bounds
+      if (pageNum >= 1 && pageNum <= viewer.pagesCount) {
+        try {
+          viewer.currentPageNumber = Number(pageNum);
+          
+          setTimeout(() => {
+            if (viewer) {
+              const pageDiv = viewer.getPageView(pageNum - 1)?.div;
+              if (pageDiv) {
+                pageDiv.classList.add('highlighted');
+                pageDiv.scrollIntoView({ 
+                  behavior: 'smooth', 
+                  block: 'center' 
+                });
               }
-            }, 200);
-          } catch (err) {
-            console.warn('Failed to navigate to page:', pageNum, err);
-          }
+            }
+          }, 200);
+        } catch (err) {
+          console.warn('Failed to navigate to page:', pageNum, err);
         }
+      }
     }
   }, [highlightedElementId, viewer, isLoading, numPages]);
 
@@ -461,9 +493,53 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
     return <PDFPlaceholder className={className} style={style} />;
   }
 
+  if (!pdfDocument || isLoading) {
+    return <Loader />;
+  }
+
   return (
-    <div className={`relative ${className}`} style={style}>
-      {/* Main content container - hidden while loading */}
+    <div 
+      ref={containerRef}
+      className={`relative ${className}`} 
+      style={style}
+      tabIndex={0}
+    >
+      {/* Floating page indicator - top left */}
+      {numPages > 0 && (
+        <div className="absolute z-20" style={{ top: '8px', left: '8px' }}>
+          <div className="h-8 px-3 flex items-center justify-center text-sm bg-white/90 backdrop-blur-sm text-gray-700 font-medium rounded-md shadow-sm border border-gray-200/50">
+            Page {currentPage} of {numPages}
+          </div>
+        </div>
+      )}
+      
+      {/* Floating controls - top right */}
+      <div className="absolute z-20" style={{ top: '8px', right: '16px' }}>
+        <div className="flex items-center space-x-2">
+          {/* Zoom out button */}
+          <button
+            onClick={zoomOut}
+            className="w-8 h-8 flex items-center justify-center bg-white/90 backdrop-blur-sm text-gray-700 rounded-md shadow-sm border border-gray-200/50 hover:bg-gray-50 transition-colors font-medium cursor-pointer"
+            title="Zoom out (Ctrl+-)"
+          >
+            -
+          </button>
+          
+          {/* Zoom in button */}
+          <button
+            onClick={zoomIn}
+            className="w-8 h-8 flex items-center justify-center bg-white/90 backdrop-blur-sm text-gray-700 rounded-md shadow-sm border border-gray-200/50 hover:bg-gray-50 transition-colors font-medium cursor-pointer"
+            title="Zoom in (Ctrl+=)"
+          >
+            +
+          </button>
+          
+          {/* Download button */}
+          <DownloadButton onClick={handleDownload} />
+        </div>
+      </div>
+
+      {/* Main content container */}
       <div 
         ref={viewerContainerRef}
         className="w-full h-full"
@@ -482,7 +558,12 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
       
       {/* Error display */}
       {error && !isLoading && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center p-4" style={{ backgroundColor: 'white' }}>
+        <div 
+          className="absolute inset-0 flex flex-col items-center justify-center p-4" 
+          style={{ 
+            backgroundColor: 'white'
+          }}
+        >
           <div style={{ marginBottom: '20px', color: '#dc2626' }}>
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -515,30 +596,12 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
           <div className="mt-4 ml-2">
             <DownloadButton 
               onClick={handleDownload} 
-              label="Download PDF" 
-              primary={true}
             />
           </div>
         </div>
-      )}
-      
-      {/* Page indicator and download button - only shown when document is loaded */}
-      {(numPages > 0 && !error && !isLoading) && (
-        <>
-          <div className="absolute top-2 left-2 z-10">
-            <PageIndicator 
-              currentPage={currentPage} 
-              totalPages={numPages} 
-            />
-          </div>
-          
-          <div className="absolute top-2 right-4 z-10">
-            <DownloadButton onClick={handleDownload} />
-          </div>
-        </>
       )}
     </div>
   );
 };
 
-export default PDFViewer;
+export default DocumentViewer; 

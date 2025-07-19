@@ -1,4 +1,4 @@
-import DocumentViewer from './components/document-viewer/document-viewer';
+import DocumentViewer from './components/document-viewer';
 export { DocumentViewer };
 
 // Export context and hook

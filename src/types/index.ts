@@ -4,9 +4,9 @@
 
 /**
  * Document file types for binary documents
- * Updated to remove null since the API always provides this for blob documents
+ * Only PDF is supported
  */
-export type FileType = 'pdf' | 'xlsx';
+export type FileType = 'pdf';
 
 // Extend the Window interface to include the highlightCaptidePage function
 declare global {
