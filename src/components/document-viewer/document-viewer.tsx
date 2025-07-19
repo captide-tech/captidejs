@@ -27,7 +27,7 @@ const DocumentViewer: React.FC<{ className?: string; style?: React.CSSProperties
 
   if (!document || isLoading) {
     return (
-      <Loader message={isLoading ? 'Loading document...' : 'No document loaded'} />
+      <Loader />
     );
   }
 

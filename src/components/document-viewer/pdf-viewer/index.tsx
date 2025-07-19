@@ -476,7 +476,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
       {/* Loading spinner */}
       {isLoading && (
         <div className="absolute inset-0">
-          <Loader message="Loading document..." />
+          <Loader />
         </div>
       )}
       
