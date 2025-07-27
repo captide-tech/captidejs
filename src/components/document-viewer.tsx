@@ -38,8 +38,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     zoomIn, 
     zoomOut, 
     resetZoom,
-    highlightedElementId, 
-    citationSnippet 
+    pageNumber,
+    citationSnippet
   } = useDocumentViewer();
   
   const containerRef = useRef<HTMLDivElement>(null);
@@ -294,15 +294,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             }
           }
           
-          // Navigate to specific page if highlightedElementId is provided
-          if (highlightedElementId && pdfViewerInstance && mounted) {
-            const match = highlightedElementId.match(/(\d{4})$/);
-            let pageNum = 1;
-            if (match) {
-              pageNum = parseInt(match[1], 10) + 1; // PDF.js is 1-based
-            }
-            
-            // Validate page number is within bounds
+          // Navigate to specific page if pageNumber is provided
+          if (typeof pageNumber === 'number' && pdfViewerInstance && mounted) {
+            const pageNum = pageNumber;
             if (pageNum >= 1 && pageNum <= pdfViewerInstance.pagesCount) {
               try {
                 pdfViewerInstance.currentPageNumber = Number(pageNum);
@@ -392,7 +386,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         pdfDocumentInstance.destroy();
       }
     };
-  }, [pdfDocument?.originalFileUrl, pdfJsLoaded, zoomLevel, highlightedElementId, isBrowser]);
+  }, [pdfDocument?.originalFileUrl, pdfJsLoaded, zoomLevel, isBrowser, pageNumber]);
 
   // Handle text highlighting when citationSnippet changes
   useEffect(() => {
@@ -402,11 +396,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         return;
       }
       let targetPage: number | undefined;
-      if (highlightedElementId) {
-        const match = highlightedElementId.match(/(\d{4})$/);
-        if (match) {
-          targetPage = parseInt(match[1], 10) + 1; // PDF.js is 1-based
-        }
+      if (typeof pageNumber === 'number') {
+        targetPage = pageNumber;
       }
       (async () => {
         const newHighlight = await createRectangleHighlight(
@@ -421,7 +412,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         }
       })();
     }
-  }, [citationSnippet, viewer, isLoading, highlightedElementId, currentHighlight, removeCurrentHighlight]);
+  }, [citationSnippet, viewer, isLoading, pageNumber, currentHighlight, removeCurrentHighlight]);
 
   // Clean up highlight when citationSnippet becomes null
   useEffect(() => {
@@ -430,14 +421,10 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     }
   }, [citationSnippet, currentHighlight, removeCurrentHighlight]);
 
-  // Handle highlightedElementId changes after viewer is loaded
+  // Handle pageNumber changes after viewer is loaded
   useEffect(() => {
-    if (highlightedElementId && viewer && !isLoading && numPages > 0) {
-      const match = highlightedElementId.match(/(\d{4})$/);
-      let pageNum = 1;
-      if (match) {
-        pageNum = parseInt(match[1], 10) + 1; // PDF.js is 1-based
-      }
+    if (typeof pageNumber === 'number' && viewer && !isLoading && numPages > 0) {
+      const pageNum = pageNumber;
       
       // Validate page number is within bounds
       if (pageNum >= 1 && pageNum <= viewer.pagesCount) {
@@ -461,7 +448,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         }
       }
     }
-  }, [highlightedElementId, viewer, isLoading, numPages]);
+  }, [pageNumber, viewer, isLoading, numPages]);
 
   // Update zoom level when it changes
   useEffect(() => {

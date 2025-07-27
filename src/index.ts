@@ -9,7 +9,6 @@ export {
 
 export type { 
   Document, 
-  TabInfo,
   DocumentViewerState,
   DocumentViewerContextValue,
   FetchDocumentFn,
