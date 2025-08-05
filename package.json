@@ -1,6 +1,6 @@
 {
   "name": "captide",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Get millions of financial documents into your AI app 🚀",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
@@ -35,8 +35,8 @@
   "homepage": "https://github.com/captide-tech/captidejs#readme",
   "peerDependencies": {
     "pdfjs-dist": "^5.2.0",
-    "react": "^16.8.0",
-    "react-dom": "^16.8.0"
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
   },
   "devDependencies": {
     "@babel/preset-typescript": "^7.27.1",
