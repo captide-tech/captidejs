@@ -4,6 +4,7 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { createRectangleHighlight, removeHighlight, type CurrentHighlight } from '@utils/pdf-highlighting';
 import Loader from '@components/shared/loader';
 import DownloadButton from '@components/shared/download-button';
+import HTMLViewer from '@components/html-viewer';
 
 // Simple placeholder for SSR
 const PDFPlaceholder: React.FC<{className?: string; style?: React.CSSProperties}> = ({
@@ -39,7 +40,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     zoomOut, 
     resetZoom,
     pageNumber,
-    citationSnippet
+    citationSnippet,
+    legacyElementId
   } = useDocumentViewer();
   
   const containerRef = useRef<HTMLDivElement>(null);
@@ -53,6 +55,21 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   
   // Only run in browser
   const isBrowser = typeof window !== 'undefined';
+
+  // Helper function to determine document type
+  const getDocumentType = (document: any): 'pdf' | 'html' => {
+    if (!document) return 'pdf';
+    
+    // Check for HTML content in metadata
+    if (document.metadata?.htmlContent) {
+      return 'html';
+    }
+    
+    // Default to PDF
+    return 'pdf';
+  };
+
+  const documentType = getDocumentType(pdfDocument);
 
   // Add highlighting styles
   if (typeof window !== 'undefined' && !document.getElementById('pdf-rectangle-highlight-style')) {
@@ -484,6 +501,21 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     return <Loader />;
   }
 
+  // Render HTML viewer for HTML documents
+  if (documentType === 'html') {
+    return (
+      <HTMLViewer
+        document={pdfDocument}
+        highlightedElementId={legacyElementId || null}
+        zoomLevel={zoomLevel}
+        className={className}
+        style={style}
+      />
+    );
+  }
+
+
+  // Default PDF viewer
   return (
     <div 
       ref={containerRef}

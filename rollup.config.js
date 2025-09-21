@@ -27,8 +27,8 @@ const config = {
       entries: [
         { find: '@components', replacement: path.resolve(__dirname, 'src/components') },
         { find: '@contexts', replacement: path.resolve(__dirname, 'src/contexts') },
-        { find: '@types', replacement: path.resolve(__dirname, 'src/types/index.ts') }
-        // Removed @utils alias as the directory no longer exists
+        { find: '@types', replacement: path.resolve(__dirname, 'src/types/index.ts') },
+        { find: '@utils', replacement: path.resolve(__dirname, 'src/utils') }
       ]
     }),
     

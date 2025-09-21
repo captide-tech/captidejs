@@ -4,9 +4,9 @@
 
 /**
  * Document file types for binary documents
- * Only PDF is supported
+ * PDF and HTML files are supported
  */
-export type FileType = 'pdf';
+export type FileType = 'pdf' | 'html';
 
 // Extend the Window interface to include the highlightCaptidePage function
 declare global {
@@ -38,6 +38,7 @@ export interface DocumentViewerState {
   zoomLevel: number;
   pageNumber?: number;
   citationSnippet?: string;
+  legacyElementId?: string;
 }
 
 // FetchDocumentFn for the new model
@@ -47,7 +48,7 @@ export type FetchDocumentFn = (documentId: string) => Promise<Document>;
 export interface DocumentViewerContextValue extends DocumentViewerState {
   updateDocumentViewer: (updates: Partial<DocumentViewerState>) => void;
   setDocument: (document: Document | null) => void;
-  loadDocument: (documentId: string, pageNumber?: number, citationSnippet?: string) => Promise<void>;
+  loadDocument: (documentId: string, pageNumber?: number, citationSnippet?: string, legacyElementId?: string) => Promise<void>;
   setFetchDocumentFn: (fn: FetchDocumentFn) => void;
   openViewer: () => void;
   closeViewer: () => void;
@@ -55,4 +56,10 @@ export interface DocumentViewerContextValue extends DocumentViewerState {
   zoomIn: () => void;
   zoomOut: () => void;
   resetZoom: () => void;
+}
+
+// Tooltip position interface for HTML viewer
+export interface TooltipPosition {
+  x: number;
+  y: number;
 } 
