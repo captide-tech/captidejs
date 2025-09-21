@@ -71,6 +71,21 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
 
   const documentType = getDocumentType(pdfDocument);
 
+  // Helper function to extract page number from legacyElementId
+  const getPageNumberFromLegacyElementId = (legacyElementId: string | undefined): number | undefined => {
+    if (!legacyElementId) return undefined;
+    
+    // Get last 4 characters
+    const lastFourChars = legacyElementId.slice(-4);
+    
+    // Convert to number and add 1 (0000 = page 1, 0001 = page 2, etc.)
+    const pageNum = parseInt(lastFourChars, 10);
+    return isNaN(pageNum) ? undefined : pageNum + 1;
+  };
+
+  // Determine the effective page number
+  const effectivePageNumber = pageNumber || getPageNumberFromLegacyElementId(legacyElementId);
+
   // Add highlighting styles
   if (typeof window !== 'undefined' && !document.getElementById('pdf-rectangle-highlight-style')) {
     const style = document.createElement('style');
@@ -312,8 +327,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           }
           
           // Navigate to specific page if pageNumber is provided
-          if (typeof pageNumber === 'number' && pdfViewerInstance && mounted) {
-            const pageNum = pageNumber;
+          if (typeof effectivePageNumber === 'number' && pdfViewerInstance && mounted) {
+            const pageNum = effectivePageNumber;
             if (pageNum >= 1 && pageNum <= pdfViewerInstance.pagesCount) {
               try {
                 pdfViewerInstance.currentPageNumber = Number(pageNum);
@@ -403,7 +418,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         pdfDocumentInstance.destroy();
       }
     };
-  }, [pdfDocument?.originalFileUrl, pdfJsLoaded, zoomLevel, isBrowser, pageNumber]);
+  }, [pdfDocument?.originalFileUrl, pdfJsLoaded, zoomLevel, isBrowser, effectivePageNumber]);
 
   // Handle text highlighting when citationSnippet changes
   useEffect(() => {
@@ -413,8 +428,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         return;
       }
       let targetPage: number | undefined;
-      if (typeof pageNumber === 'number') {
-        targetPage = pageNumber;
+      if (typeof effectivePageNumber === 'number') {
+        targetPage = effectivePageNumber;
       }
       (async () => {
         const newHighlight = await createRectangleHighlight(
@@ -429,7 +444,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         }
       })();
     }
-  }, [citationSnippet, viewer, isLoading, pageNumber, currentHighlight, removeCurrentHighlight]);
+  }, [citationSnippet, viewer, isLoading, effectivePageNumber, currentHighlight, removeCurrentHighlight]);
 
   // Clean up highlight when citationSnippet becomes null
   useEffect(() => {
@@ -440,8 +455,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
 
   // Handle pageNumber changes after viewer is loaded
   useEffect(() => {
-    if (typeof pageNumber === 'number' && viewer && !isLoading && numPages > 0) {
-      const pageNum = pageNumber;
+    if (typeof effectivePageNumber === 'number' && viewer && !isLoading && numPages > 0) {
+      const pageNum = effectivePageNumber;
       
       // Validate page number is within bounds
       if (pageNum >= 1 && pageNum <= viewer.pagesCount) {
@@ -465,7 +480,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         }
       }
     }
-  }, [pageNumber, viewer, isLoading, numPages]);
+  }, [effectivePageNumber, viewer, isLoading, numPages]);
 
   // Update zoom level when it changes
   useEffect(() => {
@@ -508,6 +523,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         document={pdfDocument}
         highlightedElementId={legacyElementId || null}
         zoomLevel={zoomLevel}
+        onZoomIn={zoomIn}
+        onZoomOut={zoomOut}
+        onResetZoom={resetZoom}
         className={className}
         style={style}
       />

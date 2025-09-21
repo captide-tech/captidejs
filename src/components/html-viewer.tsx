@@ -12,6 +12,9 @@ interface HTMLViewerProps {
   document: any;
   highlightedElementId: string | null;
   zoomLevel: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onResetZoom: () => void;
   className?: string;
   style?: React.CSSProperties;
 }
@@ -26,6 +29,9 @@ const HTMLViewer: React.FC<HTMLViewerProps> = ({
   document,
   highlightedElementId,
   zoomLevel,
+  onZoomIn,
+  onZoomOut,
+  onResetZoom,
   className = 'w-full h-full',
   style
 }) => {
@@ -196,6 +202,29 @@ const HTMLViewer: React.FC<HTMLViewerProps> = ({
         }}
         title="Document Viewer"
       />
+      
+      {/* Floating controls - top right */}
+      <div className="absolute z-20" style={{ top: '8px', right: '16px' }}>
+        <div className="flex items-center space-x-2">
+          {/* Zoom out button */}
+          <button
+            onClick={onZoomOut}
+            className="w-8 h-8 flex items-center justify-center bg-white/90 backdrop-blur-sm text-gray-700 rounded-md shadow-sm border border-gray-200/50 hover:bg-gray-50 transition-colors font-medium cursor-pointer"
+            title="Zoom out (Ctrl+-)"
+          >
+            -
+          </button>
+          
+          {/* Zoom in button */}
+          <button
+            onClick={onZoomIn}
+            className="w-8 h-8 flex items-center justify-center bg-white/90 backdrop-blur-sm text-gray-700 rounded-md shadow-sm border border-gray-200/50 hover:bg-gray-50 transition-colors font-medium cursor-pointer"
+            title="Zoom in (Ctrl+=)"
+          >
+            +
+          </button>
+        </div>
+      </div>
       
       {/* Loading spinner */}
       {isLoading && (
