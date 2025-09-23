@@ -1,6 +1,6 @@
 {
   "name": "captide",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Get millions of financial documents into your AI app 🚀",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
