@@ -149,9 +149,12 @@ export const createRectangleHighlight = async (
 ): Promise<CurrentHighlight | null> => {
   if (!searchText || !pdfViewerInstance || !pdfViewerInstance.pagesCount) return null;
 
+  // Truncate overly long search strings to reduce fragility
+  const effectiveSearchText = searchText.length > 50 ? searchText.slice(0, 50) : searchText;
+
   // Check if we already have a highlight for the same text and page
   if (currentHighlight && 
-      currentHighlight.text === searchText && 
+      currentHighlight.text === effectiveSearchText && 
       currentHighlight.page === (targetPage || pdfViewerInstance.currentPageNumber) &&
       // Ensure the element is still attached; otherwise, recreate
       (currentHighlight.element?.isConnected === true)) {
@@ -164,7 +167,7 @@ export const createRectangleHighlight = async (
   let attempt = 0;
   let result: HighlightResult | null = null;
   while (attempt < maxAttempts) {
-    result = await findTextInPDF(searchText, pdfViewerInstance, targetPage);
+    result = await findTextInPDF(effectiveSearchText, pdfViewerInstance, targetPage);
     if (result) break;
     await sleep(retryDelayMs);
     attempt += 1;
@@ -193,6 +196,9 @@ export const createRectangleHighlight = async (
       if (!currentPageView) { resolve(null); return; }
       
       const pageDiv = currentPageView.div;
+      // Prefer to attach highlight inside the text layer (which sits above the canvas)
+      const textLayer: HTMLElement | null = pageDiv.querySelector('.textLayer');
+      const highlightContainer: HTMLElement = textLayer || pageDiv;
       
       // Calculate bounding box from matching text items
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -237,14 +243,16 @@ export const createRectangleHighlight = async (
       highlightElement.style.width = `${Math.abs(x2 - x1) + padding * 2}px`;
       highlightElement.style.height = `${Math.abs(y2 - y1) + padding * 2}px`;
       
-      // Add to page
-      pageDiv.style.position = 'relative';
-      pageDiv.appendChild(highlightElement);
+      // Add to appropriate container
+      if (!highlightContainer.style.position || highlightContainer.style.position === 'static') {
+        highlightContainer.style.position = 'relative';
+      }
+      highlightContainer.appendChild(highlightElement);
       
       const highlight: CurrentHighlight = {
         element: highlightElement,
         page: confirmedResult.page,
-        text: searchText
+        text: effectiveSearchText
       };
       
       resolve(highlight);

@@ -386,6 +386,13 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             rehighlightRef.current && rehighlightRef.current();
           }
         });
+        // Ensure highlight after text layer is rendered (positions/layers finalized)
+        eventBusInstance.on('textlayerrendered', () => {
+          if (!mounted) return;
+          if (citationSnippet) {
+            rehighlightRef.current && rehighlightRef.current();
+          }
+        });
         // Try also on scale change events if emitted by this viewer
         eventBusInstance.on('scalechanging', () => {
           if (!mounted) return;
@@ -460,6 +467,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         eventBusInstance.off('pagesinit');
         eventBusInstance.off('pagechanging');
         eventBusInstance.off('pagerendered');
+        eventBusInstance.off('textlayerrendered');
         eventBusInstance.off('scalechanging');
         eventBusInstance.off('scalechanged');
       }
