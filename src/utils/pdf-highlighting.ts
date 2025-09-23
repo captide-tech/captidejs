@@ -22,6 +22,37 @@ export interface CurrentHighlight {
 }
 
 /**
+ * Sleep helper for retry/backoff flows
+ */
+const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Wait until a page view is ready (its container div and viewport exist).
+ * Polls until ready or timeout.
+ */
+const waitForPageReady = async (
+  pdfViewerInstance: any,
+  pageNumber: number,
+  timeoutMs: number = 2000,
+  pollIntervalMs: number = 50
+): Promise<any | null> => {
+  const start = Date.now();
+  const targetIndex = Math.max(0, pageNumber - 1);
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const pageView = pdfViewerInstance?.getPageView?.(targetIndex);
+      if (pageView?.div && pageView?.viewport) {
+        return pageView;
+      }
+    } catch (_) {
+      // ignore and retry
+    }
+    await sleep(pollIntervalMs);
+  }
+  return null;
+};
+
+/**
  * Normalize text for comparison (remove spaces, dollar signs, make lowercase)
  */
 const normalizeText = (str: string): string => {
@@ -121,11 +152,23 @@ export const createRectangleHighlight = async (
   // Check if we already have a highlight for the same text and page
   if (currentHighlight && 
       currentHighlight.text === searchText && 
-      currentHighlight.page === (targetPage || pdfViewerInstance.currentPageNumber)) {
+      currentHighlight.page === (targetPage || pdfViewerInstance.currentPageNumber) &&
+      // Ensure the element is still attached; otherwise, recreate
+      (currentHighlight.element?.isConnected === true)) {
     return currentHighlight;
   }
-  
-  const result = await findTextInPDF(searchText, pdfViewerInstance, targetPage);
+
+  // Retry find and place highlight while pages/text may still be initializing
+  const maxAttempts = 20; // ~2s at 100ms interval
+  const retryDelayMs = 100;
+  let attempt = 0;
+  let result: HighlightResult | null = null;
+  while (attempt < maxAttempts) {
+    result = await findTextInPDF(searchText, pdfViewerInstance, targetPage);
+    if (result) break;
+    await sleep(retryDelayMs);
+    attempt += 1;
+  }
   if (!result) return null;
 
   // Navigate to the page if needed
@@ -140,13 +183,14 @@ export const createRectangleHighlight = async (
     }
   }
 
+  // Capture non-null result for use inside the async closure
+  const confirmedResult = result as HighlightResult;
+
   return new Promise((resolve) => {
     (async () => {
-      const currentPageView = pdfViewerInstance.getPageView(result.page - 1);
-      if (!currentPageView?.div) {
-        resolve(null);
-        return;
-      }
+      // Ensure the target page view is ready
+      const currentPageView = await waitForPageReady(pdfViewerInstance, confirmedResult.page);
+      if (!currentPageView) { resolve(null); return; }
       
       const pageDiv = currentPageView.div;
       
@@ -154,7 +198,7 @@ export const createRectangleHighlight = async (
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       let hasValidCoordinates = false;
       
-      for (const matchItem of result.textItems) {
+      for (const matchItem of confirmedResult.textItems) {
         const item = matchItem.item;
         if (item.transform && item.width && item.height) {
           const x = item.transform[4]; // x coordinate
@@ -199,7 +243,7 @@ export const createRectangleHighlight = async (
       
       const highlight: CurrentHighlight = {
         element: highlightElement,
-        page: result.page,
+        page: confirmedResult.page,
         text: searchText
       };
       

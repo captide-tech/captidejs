@@ -52,6 +52,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const [pdfJsLoaded, setPdfJsLoaded] = useState(false);
   const [viewer, setViewer] = useState<any>(null);
   const [currentHighlight, setCurrentHighlight] = useState<CurrentHighlight | null>(null);
+  const rehighlightRef = useRef<() => void>();
   
   // Only run in browser
   const isBrowser = typeof window !== 'undefined';
@@ -111,6 +112,32 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       setCurrentHighlight(null);
     }
   }, [currentHighlight]);
+
+  // Helper to (re)apply the text highlight robustly
+  const reapplyHighlight = useCallback(() => {
+    if (!citationSnippet || !viewer || isLoading) return;
+    let targetPage: number | undefined;
+    if (typeof effectivePageNumber === 'number') {
+      targetPage = effectivePageNumber;
+    }
+    (async () => {
+      const newHighlight = await createRectangleHighlight(
+        citationSnippet,
+        viewer,
+        targetPage,
+        currentHighlight
+      );
+      if (newHighlight) {
+        removeCurrentHighlight();
+        setCurrentHighlight(newHighlight);
+      }
+    })();
+  }, [citationSnippet, viewer, isLoading, effectivePageNumber, currentHighlight, removeCurrentHighlight]);
+
+  // Keep a ref to latest reapply function for event handlers
+  useEffect(() => {
+    rehighlightRef.current = reapplyHighlight;
+  }, [reapplyHighlight]);
 
   // Handle download functionality
   const handleDownload = () => {
@@ -352,6 +379,26 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             }
           }
         });
+        // Re-apply highlight when pages render (e.g., after scale or visibility changes)
+        eventBusInstance.on('pagerendered', () => {
+          if (!mounted) return;
+          if (citationSnippet) {
+            rehighlightRef.current && rehighlightRef.current();
+          }
+        });
+        // Try also on scale change events if emitted by this viewer
+        eventBusInstance.on('scalechanging', () => {
+          if (!mounted) return;
+          if (citationSnippet) {
+            rehighlightRef.current && rehighlightRef.current();
+          }
+        });
+        eventBusInstance.on('scalechanged', () => {
+          if (!mounted) return;
+          if (citationSnippet) {
+            rehighlightRef.current && rehighlightRef.current();
+          }
+        });
         
         eventBusInstance.on('pagechanging', (evt: any) => {
           if (mounted) {
@@ -412,6 +459,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       if (eventBusInstance) {
         eventBusInstance.off('pagesinit');
         eventBusInstance.off('pagechanging');
+        eventBusInstance.off('pagerendered');
+        eventBusInstance.off('scalechanging');
+        eventBusInstance.off('scalechanged');
       }
       
       if (pdfDocumentInstance) {
