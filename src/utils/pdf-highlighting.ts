@@ -88,6 +88,9 @@ export const findTextInPDF = async (
 ): Promise<HighlightResult | null> => {
   if (!searchText || !pdfViewerInstance || !pdfViewerInstance.pagesCount) return null;
 
+  // Limit overly long search strings to reduce false negatives due to layout variances
+  const effectiveSearchText = searchText.length > 50 ? searchText.slice(0, 50) : searchText;
+
   const pagesToSearch = targetPage 
     ? [targetPage] 
     : Array.from({ length: pdfViewerInstance.pagesCount }, (_, i) => i + 1);
@@ -99,7 +102,7 @@ export const findTextInPDF = async (
     
     // Normalize both texts for comparison
     const normalizedPageText = normalizeText(pageTextData.fullText);
-    const normalizedSearch = normalizeText(searchText);
+    const normalizedSearch = normalizeText(effectiveSearchText);
     
     const matchIndex = normalizedPageText.indexOf(normalizedSearch);
     
@@ -149,12 +152,9 @@ export const createRectangleHighlight = async (
 ): Promise<CurrentHighlight | null> => {
   if (!searchText || !pdfViewerInstance || !pdfViewerInstance.pagesCount) return null;
 
-  // Truncate overly long search strings to reduce fragility
-  const effectiveSearchText = searchText.length > 50 ? searchText.slice(0, 50) : searchText;
-
   // Check if we already have a highlight for the same text and page
   if (currentHighlight && 
-      currentHighlight.text === effectiveSearchText && 
+      currentHighlight.text === searchText && 
       currentHighlight.page === (targetPage || pdfViewerInstance.currentPageNumber) &&
       // Ensure the element is still attached; otherwise, recreate
       (currentHighlight.element?.isConnected === true)) {
@@ -167,7 +167,7 @@ export const createRectangleHighlight = async (
   let attempt = 0;
   let result: HighlightResult | null = null;
   while (attempt < maxAttempts) {
-    result = await findTextInPDF(effectiveSearchText, pdfViewerInstance, targetPage);
+    result = await findTextInPDF(searchText, pdfViewerInstance, targetPage);
     if (result) break;
     await sleep(retryDelayMs);
     attempt += 1;
@@ -196,9 +196,6 @@ export const createRectangleHighlight = async (
       if (!currentPageView) { resolve(null); return; }
       
       const pageDiv = currentPageView.div;
-      // Prefer to attach highlight inside the text layer (which sits above the canvas)
-      const textLayer: HTMLElement | null = pageDiv.querySelector('.textLayer');
-      const highlightContainer: HTMLElement = textLayer || pageDiv;
       
       // Calculate bounding box from matching text items
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -243,16 +240,14 @@ export const createRectangleHighlight = async (
       highlightElement.style.width = `${Math.abs(x2 - x1) + padding * 2}px`;
       highlightElement.style.height = `${Math.abs(y2 - y1) + padding * 2}px`;
       
-      // Add to appropriate container
-      if (!highlightContainer.style.position || highlightContainer.style.position === 'static') {
-        highlightContainer.style.position = 'relative';
-      }
-      highlightContainer.appendChild(highlightElement);
+      // Add to page
+      pageDiv.style.position = 'relative';
+      pageDiv.appendChild(highlightElement);
       
       const highlight: CurrentHighlight = {
         element: highlightElement,
         page: confirmedResult.page,
-        text: effectiveSearchText
+        text: searchText
       };
       
       resolve(highlight);
