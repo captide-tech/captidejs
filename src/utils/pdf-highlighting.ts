@@ -148,7 +148,8 @@ export const createRectangleHighlight = async (
   searchText: string,
   pdfViewerInstance: any,
   targetPage?: number,
-  currentHighlight?: CurrentHighlight | null
+  currentHighlight?: CurrentHighlight | null,
+  forceRecreate?: boolean
 ): Promise<CurrentHighlight | null> => {
   if (!searchText || !pdfViewerInstance || !pdfViewerInstance.pagesCount) return null;
 
@@ -157,7 +158,8 @@ export const createRectangleHighlight = async (
       currentHighlight.text === searchText && 
       currentHighlight.page === (targetPage || pdfViewerInstance.currentPageNumber) &&
       // Ensure the element is still attached; otherwise, recreate
-      (currentHighlight.element?.isConnected === true)) {
+      (currentHighlight.element?.isConnected === true) &&
+      !forceRecreate) {
     return currentHighlight;
   }
 
@@ -232,7 +234,7 @@ export const createRectangleHighlight = async (
       highlightElement.className = 'pdf-rectangle-highlight';
       
       // Add some padding for better visibility and shift up/left
-      const padding = 4;
+      const padding = 7;
       const offsetX = 9; // shift more to the left
       const offsetY = 5; // shift more up
       highlightElement.style.left = `${Math.min(x1, x2) - padding - offsetX}px`;
