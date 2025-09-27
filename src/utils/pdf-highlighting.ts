@@ -176,8 +176,9 @@ export const createRectangleHighlight = async (
   }
   if (!result) return null;
 
-  // Navigate to the page if needed
-  if (result.page !== pdfViewerInstance.currentPageNumber) {
+  // Only navigate to the page if we're explicitly targeting a specific page
+  // Don't auto-navigate when user is scrolling around
+  if (targetPage && result.page !== pdfViewerInstance.currentPageNumber) {
     try {
       const pageNumber = Number(result.page);
       if (pageNumber >= 1 && pageNumber <= pdfViewerInstance.pagesCount) {

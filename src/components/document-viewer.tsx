@@ -52,7 +52,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const [pdfJsLoaded, setPdfJsLoaded] = useState(false);
   const [viewer, setViewer] = useState<any>(null);
   const [currentHighlight, setCurrentHighlight] = useState<CurrentHighlight | null>(null);
-  const rehighlightRef = useRef<(forceRecreate?: boolean) => void>();
   
   // Only run in browser
   const isBrowser = typeof window !== 'undefined';
@@ -113,32 +112,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     }
   }, [currentHighlight]);
 
-  // Helper to (re)apply the text highlight robustly
-  const reapplyHighlight = useCallback((forceRecreate?: boolean) => {
-    if (!citationSnippet || !viewer || isLoading) return;
-    let targetPage: number | undefined;
-    if (typeof effectivePageNumber === 'number') {
-      targetPage = effectivePageNumber;
-    }
-    (async () => {
-      const newHighlight = await createRectangleHighlight(
-        citationSnippet,
-        viewer,
-        targetPage,
-        currentHighlight,
-        forceRecreate
-      );
-      if (newHighlight) {
-        removeCurrentHighlight();
-        setCurrentHighlight(newHighlight);
-      }
-    })();
-  }, [citationSnippet, viewer, isLoading, effectivePageNumber, currentHighlight, removeCurrentHighlight]);
-
-  // Keep a ref to latest reapply function for event handlers
-  useEffect(() => {
-    rehighlightRef.current = reapplyHighlight;
-  }, [reapplyHighlight]);
 
   // Handle download functionality
   const handleDownload = () => {
@@ -380,26 +353,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             }
           }
         });
-        // Re-apply highlight when pages render (e.g., after scale or visibility changes)
-        eventBusInstance.on('pagerendered', () => {
-          if (!mounted) return;
-          if (citationSnippet) {
-            rehighlightRef.current && rehighlightRef.current(true);
-          }
-        });
-        // Try also on scale change events if emitted by this viewer
-        eventBusInstance.on('scalechanging', () => {
-          if (!mounted) return;
-          if (citationSnippet) {
-            rehighlightRef.current && rehighlightRef.current(true);
-          }
-        });
-        eventBusInstance.on('scalechanged', () => {
-          if (!mounted) return;
-          if (citationSnippet) {
-            rehighlightRef.current && rehighlightRef.current(true);
-          }
-        });
         
         eventBusInstance.on('pagechanging', (evt: any) => {
           if (mounted) {
@@ -460,9 +413,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       if (eventBusInstance) {
         eventBusInstance.off('pagesinit');
         eventBusInstance.off('pagechanging');
-        eventBusInstance.off('pagerendered');
-        eventBusInstance.off('scalechanging');
-        eventBusInstance.off('scalechanged');
       }
       
       if (pdfDocumentInstance) {
@@ -474,10 +424,18 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   // Handle text highlighting when citationSnippet changes
   useEffect(() => {
     if (citationSnippet && viewer && !isLoading) {
-      // Check if we already have a highlight for this exact text
-      if (currentHighlight && currentHighlight.text === citationSnippet) {
+      // Check if we already have a highlight for this exact text and it's still connected
+      if (currentHighlight && 
+          currentHighlight.text === citationSnippet && 
+          currentHighlight.element.isConnected) {
         return;
       }
+      
+      // If highlight exists but is disconnected, remove it first
+      if (currentHighlight && !currentHighlight.element.isConnected) {
+        removeCurrentHighlight();
+      }
+      
       let targetPage: number | undefined;
       if (typeof effectivePageNumber === 'number') {
         targetPage = effectivePageNumber;
@@ -548,6 +506,34 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       }
     }
   }, [viewer, zoomLevel]);
+
+  // Handle highlight recreation specifically for zoom changes
+  useEffect(() => {
+    if (!currentHighlight || !citationSnippet || !viewer) return;
+    
+    // Only recreate if highlight is disconnected (DOM was recreated)
+    if (!currentHighlight.element.isConnected) {
+      console.log('Highlight disconnected after zoom, recreating...');
+      
+      // Recreate highlight without changing page navigation
+      const recreateHighlight = async () => {
+        const newHighlight = await createRectangleHighlight(
+          citationSnippet,
+          viewer,
+          undefined, // Don't specify target page to avoid navigation
+          null
+        );
+        if (newHighlight) {
+          removeCurrentHighlight();
+          setCurrentHighlight(newHighlight);
+        }
+      };
+      
+      // Small delay to ensure page is fully rendered
+      setTimeout(recreateHighlight, 100);
+    }
+  }, [zoomLevel, currentHighlight, citationSnippet, viewer, removeCurrentHighlight]);
+
 
   // Clean up highlight on unmount
   useEffect(() => {
