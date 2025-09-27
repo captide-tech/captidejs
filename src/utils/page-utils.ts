@@ -34,3 +34,7 @@ export const isProxyStatement = (formType: string): boolean => {
   const normalizedType = formType?.toUpperCase();
   return ['DEF 14A', 'DEFM14A', 'DEF 14C', 'DEFM14C'].includes(normalizedType);
 };
+
+
+
+
