@@ -93,12 +93,12 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     style.textContent = `
       .pdf-rectangle-highlight {
         position: absolute !important;
-        background: rgba(255, 235, 59, 0.3) !important;
-        border: 2px solid #fdcb6e !important;
-        border-radius: 3px !important;
+        background: var(--captidejs-highlight-bg, rgba(255, 235, 59, 0.3)) !important;
+        border: var(--captidejs-highlight-border, 2px solid #fdcb6e) !important;
+        border-radius: var(--captidejs-highlight-radius, 3px) !important;
         pointer-events: none !important;
-        z-index: 1000 !important;
-        box-shadow: 0 2px 8px rgba(253, 203, 110, 0.3) !important;
+        z-index: var(--captidejs-highlight-z, 1000) !important;
+        box-shadow: var(--captidejs-highlight-shadow, 0 2px 8px rgba(253, 203, 110, 0.3)) !important;
       }
     `;
     document.head.appendChild(style);
@@ -238,11 +238,13 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
               overflow: auto;
             }
             .pdfViewer .page {
-              margin: 15px auto;
-              box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+              margin: var(--captidejs-page-margin, 15px auto);
+              box-shadow: var(--captidejs-page-shadow, 0 2px 5px rgba(0, 0, 0, 0.2));
+              border: var(--captidejs-page-border, none);
+              border-width: var(--captidejs-page-border-width, 0);
             }
             .pdfViewer .page.highlighted {
-              box-shadow: 0 0 15px 5px rgba(255, 235, 59, 0.5);
+              box-shadow: var(--captidejs-page-highlight-shadow, 0 0 15px 5px rgba(255, 235, 59, 0.5));
             }
           `;
           document.head.appendChild(customStyles);
@@ -318,6 +320,10 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         
         // Set up event listeners
         eventBusInstance.on('pagesinit', () => {
+          // Viewer is ready once pages are initialized
+          setNumPages(pdfViewerInstance?.pagesCount || pdfDocumentInstance?.numPages || 0);
+          setViewer(pdfViewerInstance);
+
           // Set initial zoom level
           if (pdfViewerInstance && zoomLevel !== undefined) {
             if (typeof zoomLevel === 'string') {
@@ -376,9 +382,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         // Set the document in the viewer
         pdfViewerInstance.setDocument(pdfDocumentInstance);
         pdfLinkService.setDocument(pdfDocumentInstance);
-
-        setNumPages(pdfDocumentInstance.numPages);
-        setViewer(pdfViewerInstance);
 
         // Set zoom after document is loaded - with delay to ensure pages are ready
         if (pdfViewerInstance && zoomLevel !== undefined && pdfViewerInstance.pagesCount > 0) {
