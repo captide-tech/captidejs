@@ -86,6 +86,18 @@ await loadDocument(
 );
 ```
 
+## PDF text selection / Ctrl+F alignment (PDF.js vs native viewer)
+
+This package uses PDF.js to render PDFs. PDF.js renders the page visually to a canvas, and reconstructs a separate HTML "text layer" for selection and find/highlighting. Some PDFs (fonts/transforms/OCR quirks) can cause that reconstructed text layer to be offset from the canvas, leading to shifted selection boxes or Ctrl/Cmd+F highlights.
+
+`DocumentViewer` supports choosing the renderer:
+
+- `renderMode="pdfjs"`: default, feature-rich (custom overlays, PDF.js find UI, etc.)
+- `renderMode="native"`: uses the browser's built-in PDF viewer (Safari uses PDFKit; best for accurate selection/highlights)
+- `renderMode="auto"`: uses native on Safari, PDF.js elsewhere
+
+Note: embedding PDFs via `<iframe>` can be blocked by the PDF host via `X-Frame-Options` or CSP `frame-ancestors`. If that happens, use the "Open" button (opens the PDF in a new tab using the browser's native viewer).
+
 ## API Access
 
 To request a Captide API license, please contact our sales team at [sales@captide.co](mailto:sales@captide.co).

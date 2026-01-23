@@ -3,17 +3,9 @@
  */
 
 /**
- * Document file types for binary documents
- * PDF and HTML files are supported
+ * Document file types
  */
 export type FileType = 'pdf' | 'html';
-
-// Extend the Window interface to include the highlightCaptidePage function
-declare global {
-  interface Window {
-    highlightCaptidePage?: (pageNumber: number) => boolean;
-  }
-}
 
 export interface Document {
   documentId: string; // Unique identifier for the document, e.g. used for tabs
@@ -38,7 +30,7 @@ export interface DocumentViewerState {
   zoomLevel: number;
   pageNumber?: number;
   citationSnippet?: string;
-  legacyElementId?: string;
+  // legacyElementId removed - backwards compatibility handled in loadDocument
 }
 
 // FetchDocumentFn for the new model
@@ -57,9 +49,3 @@ export interface DocumentViewerContextValue extends DocumentViewerState {
   zoomOut: () => void;
   resetZoom: () => void;
 }
-
-// Tooltip position interface for HTML viewer
-export interface TooltipPosition {
-  x: number;
-  y: number;
-} 

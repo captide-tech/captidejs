@@ -52,11 +52,20 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
   }, []);
 
   const closeViewer = useCallback(() => {
-    setState(prev => ({ ...prev, isOpen: false, document: null, pageNumber: undefined, citationSnippet: undefined, legacyElementId: undefined }));
+    setState(prev => ({ ...prev, isOpen: false, document: null, pageNumber: undefined, citationSnippet: undefined }));
   }, []);
 
   const loadDocument = useCallback(async (documentId: string, pageNumber?: number, citationSnippet?: string, legacyElementId?: string) => {
-    setState(prev => ({ ...prev, isLoading: true, document: null, isOpen: true, pageNumber, citationSnippet, legacyElementId }));
+    // Backwards compatibility: extract page number from legacyElementId if pageNumber not provided
+    let effectivePageNumber = pageNumber;
+    if (!effectivePageNumber && legacyElementId) {
+      const lastFourChars = legacyElementId.slice(-4);
+      const pageNum = parseInt(lastFourChars, 10);
+      if (!isNaN(pageNum)) {
+        effectivePageNumber = pageNum + 1; // Convert 0-based to 1-based
+      }
+    }
+    setState(prev => ({ ...prev, isLoading: true, document: null, isOpen: true, pageNumber: effectivePageNumber, citationSnippet }));
     const fetchFn = fetchDocumentFnRef.current || providedFetchFn;
     if (!fetchFn) {
       setState(prev => ({ ...prev, isLoading: false }));

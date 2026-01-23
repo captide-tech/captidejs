@@ -4,7 +4,6 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { createRectangleHighlight, removeHighlight, type CurrentHighlight } from '@utils/pdf-highlighting';
 import Loader from '@components/shared/loader';
 import DownloadButton from '@components/shared/download-button';
-import HTMLViewer from '@components/html-viewer';
 
 // Simple placeholder for SSR
 const PDFPlaceholder: React.FC<{className?: string; style?: React.CSSProperties}> = ({
@@ -40,8 +39,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     zoomOut, 
     resetZoom,
     pageNumber,
-    citationSnippet,
-    legacyElementId
+    citationSnippet
   } = useDocumentViewer();
   
   const containerRef = useRef<HTMLDivElement>(null);
@@ -56,35 +54,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   // Only run in browser
   const isBrowser = typeof window !== 'undefined';
 
-  // Helper function to determine document type
-  const getDocumentType = (document: any): 'pdf' | 'html' => {
-    if (!document) return 'pdf';
-    
-    // Check for HTML content in metadata
-    if (document.metadata?.htmlContent) {
-      return 'html';
-    }
-    
-    // Default to PDF
-    return 'pdf';
-  };
-
-  const documentType = getDocumentType(pdfDocument);
-
-  // Helper function to extract page number from legacyElementId
-  const getPageNumberFromLegacyElementId = (legacyElementId: string | undefined): number | undefined => {
-    if (!legacyElementId) return undefined;
-    
-    // Get last 4 characters
-    const lastFourChars = legacyElementId.slice(-4);
-    
-    // Convert to number and add 1 (0000 = page 1, 0001 = page 2, etc.)
-    const pageNum = parseInt(lastFourChars, 10);
-    return isNaN(pageNum) ? undefined : pageNum + 1;
-  };
-
-  // Determine the effective page number
-  const effectivePageNumber = pageNumber || getPageNumberFromLegacyElementId(legacyElementId);
+  // Use pageNumber directly (backwards compatibility handled in context)
+  const effectivePageNumber = pageNumber;
 
   // Add highlighting styles
   if (typeof window !== 'undefined' && !document.getElementById('pdf-rectangle-highlight-style')) {
@@ -233,6 +204,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           customStyles.textContent = `
             .pdf-container {
               position: absolute;
+              inset: 0;
               width: 100%;
               height: 100%;
               overflow: auto;
@@ -243,6 +215,27 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             }
             .pdfViewer .page.highlighted {
               box-shadow: 0 0 15px 5px rgba(255, 235, 59, 0.5);
+            }
+            /*
+              PDF.js renders visible content to a canvas and selection/search highlights via an HTML text layer.
+              Some apps/global CSS can accidentally offset the text layer; keep it anchored to the page.
+            */
+            .pdfViewer .textLayer {
+              top: 0px !important;
+              left: 0px !important;
+            }
+            /* Ensure text spans keep PDF.js expected positioning/metrics (defensive against global CSS). */
+            .pdfViewer .textLayer > span {
+              transform-origin: 0% 0% !important;
+              line-height: 1 !important;
+            }
+            /* Override PDF.js search highlight colors to yellow */
+            .pdfViewer .textLayer .highlight {
+              background-color: rgba(255, 235, 59, 0.3) !important;
+              color: inherit !important;
+            }
+            .pdfViewer .textLayer .highlight.selected {
+              background-color: rgba(255, 235, 59, 0.5) !important;
             }
           `;
           document.head.appendChild(customStyles);
@@ -310,7 +303,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           viewer: viewerElement,
           eventBus: eventBusInstance,
           linkService: pdfLinkService,
-          textLayerMode: 2, // Enable text layer
+          // Use the non-enhanced text layer mode; it tends to be more reliable across PDFs and CSS environments.
+          textLayerMode: 1,
           removePageBorders: false,
         });
         
@@ -367,6 +361,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           withCredentials: false,
           cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
           cMapPacked: true,
+          // Provide standard font data; missing font metrics are a common cause of misaligned text layer selection/highlights.
+          standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/standard_fonts/`,
         });
         
         pdfDocumentInstance = await loadingTask.promise;
@@ -553,24 +549,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     return <Loader />;
   }
 
-  // Render HTML viewer for HTML documents
-  if (documentType === 'html') {
-    return (
-      <HTMLViewer
-        document={pdfDocument}
-        highlightedElementId={legacyElementId || null}
-        zoomLevel={zoomLevel}
-        onZoomIn={zoomIn}
-        onZoomOut={zoomOut}
-        onResetZoom={resetZoom}
-        className={className}
-        style={style}
-      />
-    );
-  }
-
-
-  // Default PDF viewer
+  // PDF viewer
   return (
     <div 
       ref={containerRef}
@@ -578,38 +557,45 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       style={style}
       tabIndex={0}
     >
-      {/* Floating page indicator - top left */}
-      {numPages > 0 && (
-        <div className="absolute z-20" style={{ top: '8px', left: '8px' }}>
-          <div className="h-8 px-3 flex items-center justify-center text-sm bg-white/90 backdrop-blur-sm text-gray-700 font-medium rounded-md shadow-sm border border-gray-200/50">
-            Page {currentPage} of {numPages}
+      {/* Top overlay row (aligned: page indicator | controls) */}
+      <div className="absolute inset-x-0 top-0 z-30 pointer-events-none" style={{ zIndex: 9999 }}>
+        <div className="flex items-center justify-between gap-2 p-2">
+          {/* Left: page indicator */}
+          <div className="pointer-events-auto">
+            {numPages > 0 && (
+              <div className="h-8 px-3 flex items-center justify-center text-sm bg-white/90 backdrop-blur-sm text-gray-700 font-medium rounded-md shadow-sm border border-gray-200/50">
+                Page {currentPage} of {numPages}
+              </div>
+            )}
           </div>
-        </div>
-      )}
-      
-      {/* Floating controls - top right */}
-      <div className="absolute z-20" style={{ top: '8px', right: '16px' }}>
-        <div className="flex items-center space-x-2">
-          {/* Zoom out button */}
-          <button
-            onClick={zoomOut}
-            className="w-8 h-8 flex items-center justify-center bg-white/90 backdrop-blur-sm text-gray-700 rounded-md shadow-sm border border-gray-200/50 hover:bg-gray-50 transition-colors font-medium cursor-pointer"
-            title="Zoom out (Ctrl+-)"
-          >
-            -
-          </button>
-          
-          {/* Zoom in button */}
-          <button
-            onClick={zoomIn}
-            className="w-8 h-8 flex items-center justify-center bg-white/90 backdrop-blur-sm text-gray-700 rounded-md shadow-sm border border-gray-200/50 hover:bg-gray-50 transition-colors font-medium cursor-pointer"
-            title="Zoom in (Ctrl+=)"
-          >
-            +
-          </button>
-          
-          {/* Download button */}
-          <DownloadButton onClick={handleDownload} />
+
+          {/* Right: open + zoom + download */}
+          <div className="pointer-events-auto">
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => window.open(pdfDocument.originalFileUrl, '_blank', 'noopener,noreferrer')}
+                className="h-8 px-3 flex items-center justify-center bg-white/90 backdrop-blur-sm text-gray-700 rounded-md shadow-sm border border-gray-200/50 hover:bg-gray-50 transition-colors font-medium cursor-pointer text-sm"
+                title="Open in browser PDF viewer"
+              >
+                Open
+              </button>
+              <button
+                onClick={zoomOut}
+                className="w-8 h-8 flex items-center justify-center bg-white/90 backdrop-blur-sm text-gray-700 rounded-md shadow-sm border border-gray-200/50 hover:bg-gray-50 transition-colors font-medium cursor-pointer"
+                title="Zoom out (Ctrl+-)"
+              >
+                -
+              </button>
+              <button
+                onClick={zoomIn}
+                className="w-8 h-8 flex items-center justify-center bg-white/90 backdrop-blur-sm text-gray-700 rounded-md shadow-sm border border-gray-200/50 hover:bg-gray-50 transition-colors font-medium cursor-pointer"
+                title="Zoom in (Ctrl+=)"
+              >
+                +
+              </button>
+              <DownloadButton onClick={handleDownload} />
+            </div>
+          </div>
         </div>
       </div>
 
