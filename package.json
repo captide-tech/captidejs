@@ -1,6 +1,6 @@
 {
   "name": "captide",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Get millions of financial documents into your AI app 🚀",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
@@ -49,6 +49,7 @@
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "jest": "^30.0.4",
+    "pdfjs-dist": "^5.2.0",
     "rollup": "^2.74.1",
     "rollup-plugin-peer-deps-external": "^2.2.4",
     "rollup-plugin-terser": "^7.0.2",
