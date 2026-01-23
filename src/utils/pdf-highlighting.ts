@@ -58,9 +58,10 @@ const waitForPageReady = async (
 const normalizeText = (str: string): string => {
   return str
     .toLowerCase()
-    .replace(/\s+/g, '') // Remove all whitespace
-    .replace(/\$/g, '') // Remove dollar signs
-    .trim();
+    // normalize curly/typographic double quotes to ASCII "
+    .replace(/[“”„‟«»‹›＂]/g, '"')
+    // remove whitespace, $, apostrophes, parentheses/brackets
+    .replace(/[\s$'’‘‚‛´ʻʼʽʾʿˈˊˋ˴՚ꞌ＇()\[\]{}⟨⟩‹›«»「」『』【】〔〕〈〉《》❨❩❪❫❬❭]+/g, '');
 };
 
 /**
@@ -82,17 +83,19 @@ const extractTextFromPage = async (pageView: any) => {
  * Find text in PDF and return matching text items with coordinates
  */
 export const findTextInPDF = async (
-  searchText: string, 
-  pdfViewerInstance: any, 
+  searchText: string,
+  pdfViewerInstance: any,
   targetPage?: number
 ): Promise<HighlightResult | null> => {
   if (!searchText || !pdfViewerInstance || !pdfViewerInstance.pagesCount) return null;
 
+  const normalizedSearchText = normalizeText(searchText);
+  
   // Limit overly long search strings to reduce false negatives due to layout variances
-  const effectiveSearchText = searchText.length > 50 ? searchText.slice(0, 50) : searchText;
+  const effectiveSearchText = normalizedSearchText.length > 50 ? normalizedSearchText.slice(0, 50) : normalizedSearchText;
 
-  const pagesToSearch = targetPage 
-    ? [targetPage] 
+  const pagesToSearch = targetPage
+    ? [targetPage]
     : Array.from({ length: pdfViewerInstance.pagesCount }, (_, i) => i + 1);
   
   for (const pageNum of pagesToSearch) {
@@ -102,10 +105,9 @@ export const findTextInPDF = async (
     
     // Normalize both texts for comparison
     const normalizedPageText = normalizeText(pageTextData.fullText);
-    const normalizedSearch = normalizeText(effectiveSearchText);
-    
-    const matchIndex = normalizedPageText.indexOf(normalizedSearch);
-    
+
+    const matchIndex = normalizedPageText.indexOf(effectiveSearchText);
+
     if (matchIndex !== -1) {
       // Map normalized index back to original text to find matching text items
       const matchingTextItems = [];
@@ -118,12 +120,12 @@ export const findTextInPDF = async (
         const itemEnd = normalizedPos + normalizedItemText.length;
         
         // Check if this text item overlaps with our match
-        if (itemStart < matchIndex + normalizedSearch.length && itemEnd > matchIndex) {
+        if (itemStart < matchIndex + normalizedSearchText.length && itemEnd > matchIndex) {
           matchingTextItems.push({
             index: i,
             item: textItem,
             start: Math.max(itemStart, matchIndex),
-            end: Math.min(itemEnd, matchIndex + normalizedSearch.length)
+            end: Math.min(itemEnd, matchIndex + normalizedSearchText.length)
           });
         }
         normalizedPos += normalizedItemText.length;
@@ -234,15 +236,28 @@ export const createRectangleHighlight = async (
       const highlightElement = document.createElement('div');
       highlightElement.className = 'pdf-rectangle-highlight';
       
-      // Add some padding for better visibility and shift up/left
-      const padding = 7;
-      const offsetX = 9; // shift more to the left
-      const offsetY = 5; // shift more up
-      highlightElement.style.left = `${Math.min(x1, x2) - padding - offsetX}px`;
-      highlightElement.style.top = `${Math.min(y1, y2) - padding - offsetY}px`;
-      highlightElement.style.width = `${Math.abs(x2 - x1) + padding * 2}px`;
-      highlightElement.style.height = `${Math.abs(y2 - y1) + padding * 2}px`;
-      
+      const width = Math.abs(x2 - x1);
+      const height = Math.abs(y2 - y1);
+      const top = Math.min(y1, y2);
+      const left = Math.min(x1, x2);
+
+      // Add padding (no more than 2px) and manage offsets
+      const padding = Math.min(2, width * 0.1, height * 0.1);
+      const offsetX = 0; // shift more to the left
+      const offsetY = -Math.min(2, height * 0.1); // shift more down
+
+      highlightElement.style.left = `${left - padding - offsetX}px`;
+      highlightElement.style.top = `${top - padding - offsetY}px`;
+      highlightElement.style.width = `${width + padding * 2}px`;
+      highlightElement.style.height = `${height + padding * 2}px`;
+
+      // In React's strict mode, double renders can cause multiple highlights to be created on the same block
+      // This guarantees that only one highlight is created
+      const existingHighlight = document.querySelector('.pdf-rectangle-highlight');
+      if (existingHighlight) {
+        existingHighlight.remove();
+      }
+
       // Add to page
       pageDiv.style.position = 'relative';
       pageDiv.appendChild(highlightElement);
