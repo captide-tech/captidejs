@@ -144,13 +144,21 @@ export const findTextInPDF = async (
 /**
  * Create a rectangle highlight overlay on a PDF page
  */
-export const createRectangleHighlight = async (
+export const createRectangleHighlight = async ({
+  searchText,
+  pdfViewerInstance,
+  targetPage,
+  currentHighlight = null,
+  forceRecreate = false,
+  shouldNavigateOnMatch = true
+}: {
   searchText: string,
-  pdfViewerInstance: any,
-  targetPage?: number,
-  currentHighlight?: CurrentHighlight | null,
-  forceRecreate?: boolean
-): Promise<CurrentHighlight | null> => {
+  pdfViewerInstance: any;
+  targetPage?: number;
+  currentHighlight?: CurrentHighlight | null;
+  forceRecreate?: boolean;
+  shouldNavigateOnMatch?: boolean;
+}): Promise<CurrentHighlight | null> => {
   if (!searchText || !pdfViewerInstance || !pdfViewerInstance.pagesCount) return null;
 
   // Check if we already have a highlight for the same text and page
@@ -176,9 +184,8 @@ export const createRectangleHighlight = async (
   }
   if (!result) return null;
 
-  // Only navigate to the page if we're explicitly targeting a specific page
   // Don't auto-navigate when user is scrolling around
-  if (targetPage && result.page !== pdfViewerInstance.currentPageNumber) {
+  if (shouldNavigateOnMatch && targetPage && result.page !== pdfViewerInstance.currentPageNumber) {
     try {
       const pageNumber = Number(result.page);
       if (pageNumber >= 1 && pageNumber <= pdfViewerInstance.pagesCount) {
