@@ -418,7 +418,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         pdfDocumentInstance.destroy();
       }
     };
-  }, [pdfDocument?.originalFileUrl, pdfJsLoaded, zoomLevel, isBrowser, effectivePageNumber]);
+  }, [pdfDocument?.originalFileUrl, pdfJsLoaded, isBrowser, effectivePageNumber]);
 
   // Handle text highlighting when citationSnippet changes
   useEffect(() => {
@@ -440,12 +440,12 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         targetPage = effectivePageNumber;
       }
       (async () => {
-        const newHighlight = await createRectangleHighlight(
-          citationSnippet, 
-          viewer, 
-          targetPage, 
-          currentHighlight
-        );
+        const newHighlight = await createRectangleHighlight({
+          searchText: citationSnippet,
+          pdfViewerInstance: viewer,
+          targetPage: targetPage,
+          currentHighlight: currentHighlight,
+        });
         if (newHighlight) {
           removeCurrentHighlight();
           setCurrentHighlight(newHighlight);
@@ -516,12 +516,13 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       
       // Recreate highlight without changing page navigation
       const recreateHighlight = async () => {
-        const newHighlight = await createRectangleHighlight(
-          citationSnippet,
-          viewer,
-          undefined, // Don't specify target page to avoid navigation
-          null
-        );
+        const newHighlight = await createRectangleHighlight({
+          searchText: citationSnippet,
+          pdfViewerInstance: viewer,
+          targetPage: currentHighlight?.page,
+          currentHighlight,
+          shouldNavigateOnMatch: false,
+        });
         if (newHighlight) {
           removeCurrentHighlight();
           setCurrentHighlight(newHighlight);
