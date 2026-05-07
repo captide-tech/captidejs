@@ -577,7 +577,13 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           <div className="pointer-events-auto">
             <div className="flex items-center space-x-2">
               <button
-                onClick={() => window.open(pdfDocument.originalFileUrl, '_blank', 'noopener,noreferrer')}
+                onClick={() => {
+                  const sourceUrl =
+                    typeof pdfDocument.metadata?.sourceURL === 'string' && pdfDocument.metadata.sourceURL.trim()
+                      ? pdfDocument.metadata.sourceURL
+                      : pdfDocument.originalFileUrl;
+                  window.open(sourceUrl, '_blank', 'noopener,noreferrer');
+                }}
                 className="h-8 px-3 flex items-center justify-center bg-white/90 backdrop-blur-sm text-gray-700 rounded-md shadow-sm border border-gray-200/50 hover:bg-gray-50 transition-colors font-medium cursor-pointer text-sm"
                 title="Open in browser PDF viewer"
               >
