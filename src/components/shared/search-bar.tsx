@@ -45,14 +45,13 @@ const inputStyle: React.CSSProperties = {
 };
 
 const statusStyle: React.CSSProperties = {
-  flexShrink: 1,
-  minWidth: 0,
+  flexShrink: 0,
+  minWidth: '64px',
   color: TOOLBAR_MUTED_FOREGROUND,
   fontSize: '12px',
   fontWeight: 400,
   whiteSpace: 'nowrap',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis'
+  textAlign: 'right'
 };
 
 const separatorStyle: React.CSSProperties = {
