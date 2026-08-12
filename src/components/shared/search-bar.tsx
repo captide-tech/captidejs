@@ -1,12 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import ToolbarButton from '@components/shared/toolbar-button';
-import { ChevronDownIcon, ChevronUpIcon, CloseIcon } from '@components/shared/icons';
+import { ChevronDownIcon, ChevronUpIcon, CloseIcon, SearchIcon } from '@components/shared/icons';
 import {
-  TOOLBAR_CONTROL_SIZE,
-  TOOLBAR_GAP,
-  TOOLBAR_INSET,
+  TOOLBAR_FIELD_MAX_WIDTH,
   TOOLBAR_MUTED_FOREGROUND,
-  toolbarRowStyle,
   toolbarSurfaceStyle
 } from '@components/shared/toolbar-styles';
 import type { DocumentSearchController } from '@types';
@@ -18,29 +15,27 @@ interface SearchBarProps {
 }
 
 const containerStyle: React.CSSProperties = {
-  ...toolbarRowStyle,
-  position: 'absolute',
-  top: `${TOOLBAR_INSET + TOOLBAR_CONTROL_SIZE + TOOLBAR_GAP}px`,
-  right: `${TOOLBAR_INSET}px`,
-  zIndex: 9999,
-  maxWidth: `calc(100% - ${TOOLBAR_INSET * 2}px)`
+  ...toolbarSurfaceStyle,
+  flex: '1 1 auto',
+  minWidth: 0,
+  maxWidth: `${TOOLBAR_FIELD_MAX_WIDTH}px`,
+  justifyContent: 'flex-start',
+  gap: '4px',
+  padding: '0 4px 0 8px'
 };
 
-const fieldStyle: React.CSSProperties = {
-  ...toolbarSurfaceStyle,
-  minWidth: 0,
-  flex: '1 1 auto',
-  justifyContent: 'flex-start',
-  gap: '8px',
-  padding: '0 10px'
+const iconStyle: React.CSSProperties = {
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'center',
+  color: TOOLBAR_MUTED_FOREGROUND
 };
 
 const inputStyle: React.CSSProperties = {
-  width: '176px',
   minWidth: 0,
   flex: '1 1 auto',
   height: '100%',
-  padding: 0,
+  padding: '0 4px',
   border: 'none',
   outline: 'none',
   backgroundColor: 'transparent',
@@ -51,15 +46,22 @@ const inputStyle: React.CSSProperties = {
 
 const statusStyle: React.CSSProperties = {
   flexShrink: 0,
-  minWidth: '64px',
   color: TOOLBAR_MUTED_FOREGROUND,
   fontSize: '12px',
-  textAlign: 'right',
+  fontWeight: 400,
   whiteSpace: 'nowrap'
 };
 
+const separatorStyle: React.CSSProperties = {
+  flexShrink: 0,
+  width: '1px',
+  height: '16px',
+  margin: '0 2px',
+  backgroundColor: '#e2e8f0'
+};
+
 const caseButtonStyle: React.CSSProperties = {
-  fontSize: '12px',
+  fontSize: '11px',
   fontWeight: 600,
   lineHeight: 1
 };
@@ -106,20 +108,22 @@ const SearchBar: React.FC<SearchBarProps> = ({ search }) => {
   return (
     <div style={containerStyle}>
       <style>{`.${INPUT_CLASS_NAME}::placeholder { color: #94a3b8; }`}</style>
-      <div style={fieldStyle}>
-        <input
-          ref={inputRef}
-          className={INPUT_CLASS_NAME}
-          style={inputStyle}
-          value={search.query}
-          onChange={(event) => search.setQuery(event.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Find in document"
-          aria-label="Find in document"
-        />
-        <span style={statusStyle}>{getStatusLabel(search)}</span>
-      </div>
+      <span style={iconStyle} aria-hidden="true">
+        <SearchIcon />
+      </span>
+      <input
+        ref={inputRef}
+        className={INPUT_CLASS_NAME}
+        style={inputStyle}
+        value={search.query}
+        onChange={(event) => search.setQuery(event.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="Find in document"
+        aria-label="Find in document"
+      />
+      <span style={statusStyle}>{getStatusLabel(search)}</span>
       <ToolbarButton
+        variant="ghost"
         onClick={search.toggleCaseSensitive}
         title="Match case"
         isActive={search.caseSensitive}
@@ -128,6 +132,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ search }) => {
         Aa
       </ToolbarButton>
       <ToolbarButton
+        variant="ghost"
         onClick={search.findPrevious}
         title="Previous match"
         disabled={!hasMatches}
@@ -135,13 +140,15 @@ const SearchBar: React.FC<SearchBarProps> = ({ search }) => {
         <ChevronUpIcon />
       </ToolbarButton>
       <ToolbarButton
+        variant="ghost"
         onClick={search.findNext}
         title="Next match"
         disabled={!hasMatches}
       >
         <ChevronDownIcon />
       </ToolbarButton>
-      <ToolbarButton onClick={search.close} title="Close find bar">
+      <span style={separatorStyle} />
+      <ToolbarButton variant="ghost" onClick={search.close} title="Close find bar">
         <CloseIcon />
       </ToolbarButton>
     </div>

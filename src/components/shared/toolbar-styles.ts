@@ -14,9 +14,14 @@ export const TOOLBAR_ACTIVE_BACKGROUND = '#f1f5f9';
 export const TOOLBAR_FOREGROUND = '#475569';
 export const TOOLBAR_MUTED_FOREGROUND = '#64748b';
 
+export const TOOLBAR_GHOST_HOVER_BACKGROUND = '#eef2f7';
+export const TOOLBAR_GHOST_ACTIVE_BACKGROUND = '#e2e8f0';
+
 export const TOOLBAR_CONTROL_SIZE = 32;
+export const TOOLBAR_GHOST_CONTROL_SIZE = 24;
 export const TOOLBAR_GAP = 8;
 export const TOOLBAR_INSET = 8;
+export const TOOLBAR_FIELD_MAX_WIDTH = 420;
 
 export const toolbarSurfaceStyle: CSSProperties = {
   height: `${TOOLBAR_CONTROL_SIZE}px`,

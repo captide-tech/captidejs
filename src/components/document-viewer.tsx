@@ -645,25 +645,32 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           }}
         >
           {/* Left: page indicator */}
-          <div style={{ pointerEvents: 'auto' }}>
-            {numPages > 0 && (
+          <div style={{ flexShrink: 0, pointerEvents: 'auto' }}>
+            {numPages > 0 && !search.isOpen && (
               <div style={{ ...toolbarSurfaceStyle, ...toolbarLabelStyle }}>
                 Page {currentPage} of {numPages}
               </div>
             )}
           </div>
 
-          {/* Right: open + zoom + download */}
-          <div style={{ ...toolbarRowStyle, pointerEvents: 'auto' }}>
-            {enableSearch && (
-              <ToolbarButton
-                onClick={search.isOpen ? search.close : search.open}
-                title="Find in document"
-                isActive={search.isOpen}
-              >
-                <SearchIcon />
-              </ToolbarButton>
-            )}
+          {/* Right: find + open + zoom + download */}
+          <div
+            style={{
+              ...toolbarRowStyle,
+              flex: '1 1 auto',
+              minWidth: 0,
+              justifyContent: 'flex-end',
+              pointerEvents: 'auto'
+            }}
+          >
+            {enableSearch &&
+              (search.isOpen ? (
+                <SearchBar search={search} />
+              ) : (
+                <ToolbarButton onClick={search.open} title="Find in document">
+                  <SearchIcon />
+                </ToolbarButton>
+              ))}
             <ToolbarButton
               onClick={handleOpenSource}
               title="Open in browser PDF viewer"
@@ -681,8 +688,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           </div>
         </div>
       </div>
-
-      {enableSearch && search.isOpen && <SearchBar search={search} />}
 
       {/* Main content container */}
       <div 
