@@ -27,6 +27,7 @@ const config = {
       entries: [
         { find: '@components', replacement: path.resolve(__dirname, 'src/components') },
         { find: '@contexts', replacement: path.resolve(__dirname, 'src/contexts') },
+        { find: '@hooks', replacement: path.resolve(__dirname, 'src/hooks') },
         { find: '@types', replacement: path.resolve(__dirname, 'src/types/index.ts') },
         { find: '@utils', replacement: path.resolve(__dirname, 'src/utils') }
       ]

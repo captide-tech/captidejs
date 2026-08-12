@@ -4,6 +4,16 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { createRectangleHighlight, removeHighlight, type CurrentHighlight } from '@utils/pdf-highlighting';
 import Loader from '@components/shared/loader';
 import DownloadButton from '@components/shared/download-button';
+import SearchBar from '@components/shared/search-bar';
+import ToolbarButton from '@components/shared/toolbar-button';
+import { SearchIcon } from '@components/shared/icons';
+import {
+  TOOLBAR_INSET,
+  toolbarLabelStyle,
+  toolbarRowStyle,
+  toolbarSurfaceStyle
+} from '@components/shared/toolbar-styles';
+import useDocumentSearch from '@hooks/use-document-search';
 
 // Simple placeholder for SSR
 const PDFPlaceholder: React.FC<{className?: string; style?: React.CSSProperties}> = ({
@@ -25,11 +35,14 @@ const PDFPlaceholder: React.FC<{className?: string; style?: React.CSSProperties}
 interface DocumentViewerProps {
   className?: string;
   style?: React.CSSProperties;
+  /** Adds a find-in-document control to the toolbar, opened with Ctrl/Cmd+F. */
+  enableSearch?: boolean;
 }
 
 const DocumentViewer: React.FC<DocumentViewerProps> = ({
   className = 'w-full h-full',
   style,
+  enableSearch = false,
 }) => {
   const { 
     document: pdfDocument, 
@@ -49,7 +62,10 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [pdfJsLoaded, setPdfJsLoaded] = useState(false);
   const [viewer, setViewer] = useState<any>(null);
+  const [eventBus, setEventBus] = useState<any>(null);
   const [currentHighlight, setCurrentHighlight] = useState<CurrentHighlight | null>(null);
+
+  const search = useDocumentSearch(eventBus);
   
   // Only run in browser
   const isBrowser = typeof window !== 'undefined';
@@ -83,6 +99,16 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     }
   }, [currentHighlight]);
 
+
+  const handleOpenSource = () => {
+    if (!pdfDocument) return;
+
+    const sourceUrl =
+      typeof pdfDocument.metadata?.sourceURL === 'string' && pdfDocument.metadata.sourceURL.trim()
+        ? pdfDocument.metadata.sourceURL
+        : pdfDocument.originalFileUrl;
+    window.open(sourceUrl, '_blank', 'noopener,noreferrer');
+  };
 
   // Handle download functionality
   const handleDownload = () => {
@@ -130,6 +156,12 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     if (!el) return;
     
     const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && enableSearch && search.isOpen) {
+        e.preventDefault();
+        search.close();
+        return;
+      }
+
       if (e.ctrlKey || e.metaKey) {
         switch (e.key) {
           case '=':
@@ -145,13 +177,26 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             e.preventDefault();
             resetZoom();
             break;
+          case 'f':
+          case 'F':
+            if (!enableSearch) break;
+            e.preventDefault();
+            search.open();
+            break;
         }
       }
     };
     
     el.addEventListener('keydown', handler);
     return () => el.removeEventListener('keydown', handler);
-  }, [zoomIn, zoomOut, resetZoom]);
+  }, [zoomIn, zoomOut, resetZoom, enableSearch, search.isOpen, search.open, search.close]);
+
+  // Withdrawing search has to clear its highlights; the bar itself is gone by then
+  useEffect(() => {
+    if (!enableSearch && search.isOpen) {
+      search.close();
+    }
+  }, [enableSearch, search.isOpen, search.close]);
 
   // Handle wheel zoom
   useEffect(() => {
@@ -233,11 +278,11 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             }
             /* Override PDF.js search highlight colors to yellow */
             .pdfViewer .textLayer .highlight {
-              background-color: rgba(255, 235, 59, 0.3) !important;
+              background-color: var(--captidejs-find-highlight-bg, rgba(255, 235, 59, 0.3)) !important;
               color: inherit !important;
             }
             .pdfViewer .textLayer .highlight.selected {
-              background-color: rgba(255, 235, 59, 0.5) !important;
+              background-color: var(--captidejs-find-highlight-selected-bg, rgba(255, 235, 59, 0.5)) !important;
             }
           `;
           document.head.appendChild(customStyles);
@@ -268,6 +313,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     let pdfViewerInstance: any = null;
     let pdfDocumentInstance: PDFDocumentProxy | null = null;
     let eventBusInstance: any = null;
+    let handlePagesInit: ((evt?: any) => void) | null = null;
+    let handlePageChanging: ((evt: any) => void) | null = null;
     
     const loadAndRenderPdf = async () => {
       try {
@@ -299,12 +346,20 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           eventBus: eventBusInstance,
         });
         
+        // Create find controller; it stays inert until a `find` event is dispatched
+        const pdfFindController = new viewerModule.PDFFindController({
+          linkService: pdfLinkService,
+          eventBus: eventBusInstance,
+          updateMatchesCountOnProgress: true,
+        });
+        
         // Create viewer
         pdfViewerInstance = new viewerModule.PDFViewer({
           container: viewerContainer,
           viewer: viewerElement,
           eventBus: eventBusInstance,
           linkService: pdfLinkService,
+          findController: pdfFindController,
           // Use the non-enhanced text layer mode; it tends to be more reliable across PDFs and CSS environments.
           textLayerMode: 1,
           removePageBorders: false,
@@ -313,10 +368,14 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         pdfLinkService.setViewer(pdfViewerInstance);
         
         // Set up event listeners
-        eventBusInstance.on('pagesinit', () => {
+        handlePagesInit = () => {
+          // A superseded load can still reach this point, and its viewer is gone
+          if (!mounted) return;
+          
           // Viewer is ready once pages are initialized
           setNumPages(pdfViewerInstance?.pagesCount || pdfDocumentInstance?.numPages || 0);
           setViewer(pdfViewerInstance);
+          setEventBus(eventBusInstance);
 
           // Set initial zoom level
           if (pdfViewerInstance && zoomLevel !== undefined) {
@@ -352,14 +411,17 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
               }
             }
           }
-        });
+        };
         
-        eventBusInstance.on('pagechanging', (evt: any) => {
+        handlePageChanging = (evt: any) => {
           if (mounted) {
             const pageNumber = parseInt(evt.pageNumber, 10) || 1;
             setCurrentPage(pageNumber);
           }
-        });
+        };
+        
+        eventBusInstance.on('pagesinit', handlePagesInit);
+        eventBusInstance.on('pagechanging', handlePageChanging);
         
         // Load the document
         const loadingTask = pdfjsLib.getDocument({
@@ -409,10 +471,13 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       mounted = false;
       
       // Clean up
+      // EventBus.off only removes a listener when given the same reference
       if (eventBusInstance) {
-        eventBusInstance.off('pagesinit');
-        eventBusInstance.off('pagechanging');
+        if (handlePagesInit) eventBusInstance.off('pagesinit', handlePagesInit);
+        if (handlePageChanging) eventBusInstance.off('pagechanging', handlePageChanging);
       }
+      
+      setEventBus(null);
       
       if (pdfDocumentInstance) {
         pdfDocumentInstance.destroy();
@@ -562,49 +627,64 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       tabIndex={0}
     >
       {/* Top overlay row (aligned: page indicator | controls) */}
-      <div className="absolute inset-x-0 top-0 z-30 pointer-events-none" style={{ zIndex: 9999 }}>
-        <div className="flex items-center justify-between gap-2 p-2">
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          top: 0,
+          zIndex: 9999,
+          pointerEvents: 'none'
+        }}
+      >
+        <div
+          style={{
+            ...toolbarRowStyle,
+            justifyContent: 'space-between',
+            padding: `${TOOLBAR_INSET}px`
+          }}
+        >
           {/* Left: page indicator */}
-          <div className="pointer-events-auto">
+          <div style={{ flexShrink: 0, pointerEvents: 'auto' }}>
             {numPages > 0 && (
-              <div className="h-8 px-3 flex items-center justify-center text-sm bg-white/90 backdrop-blur-sm text-gray-700 font-medium rounded-md shadow-sm border border-gray-200/50">
+              <div style={{ ...toolbarSurfaceStyle, ...toolbarLabelStyle }}>
                 Page {currentPage} of {numPages}
               </div>
             )}
           </div>
 
-          {/* Right: open + zoom + download */}
-          <div className="pointer-events-auto">
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => {
-                  const sourceUrl =
-                    typeof pdfDocument.metadata?.sourceURL === 'string' && pdfDocument.metadata.sourceURL.trim()
-                      ? pdfDocument.metadata.sourceURL
-                      : pdfDocument.originalFileUrl;
-                  window.open(sourceUrl, '_blank', 'noopener,noreferrer');
-                }}
-                className="h-8 px-3 flex items-center justify-center bg-white/90 backdrop-blur-sm text-gray-700 rounded-md shadow-sm border border-gray-200/50 hover:bg-gray-50 transition-colors font-medium cursor-pointer text-sm"
-                title="Open in browser PDF viewer"
-              >
-                Open
-              </button>
-              <button
-                onClick={zoomOut}
-                className="w-8 h-8 flex items-center justify-center bg-white/90 backdrop-blur-sm text-gray-700 rounded-md shadow-sm border border-gray-200/50 hover:bg-gray-50 transition-colors font-medium cursor-pointer"
-                title="Zoom out (Ctrl+-)"
-              >
-                -
-              </button>
-              <button
-                onClick={zoomIn}
-                className="w-8 h-8 flex items-center justify-center bg-white/90 backdrop-blur-sm text-gray-700 rounded-md shadow-sm border border-gray-200/50 hover:bg-gray-50 transition-colors font-medium cursor-pointer"
-                title="Zoom in (Ctrl+=)"
-              >
-                +
-              </button>
-              <DownloadButton onClick={handleDownload} />
-            </div>
+          {/* Right: find + open + zoom + download */}
+          <div
+            style={{
+              ...toolbarRowStyle,
+              flex: '1 1 auto',
+              minWidth: 0,
+              justifyContent: 'flex-end',
+              pointerEvents: 'auto'
+            }}
+          >
+            {enableSearch &&
+              (search.isOpen ? (
+                <SearchBar search={search} />
+              ) : (
+                <ToolbarButton onClick={search.open} title="Find in document">
+                  <SearchIcon />
+                </ToolbarButton>
+              ))}
+            <ToolbarButton
+              onClick={handleOpenSource}
+              title="Open in browser PDF viewer"
+              style={{ width: 'auto', ...toolbarLabelStyle }}
+            >
+              Open
+            </ToolbarButton>
+            <ToolbarButton onClick={zoomOut} title="Zoom out (Ctrl+-)">
+              -
+            </ToolbarButton>
+            <ToolbarButton onClick={zoomIn} title="Zoom in (Ctrl+=)">
+              +
+            </ToolbarButton>
+            <DownloadButton onClick={handleDownload} />
           </div>
         </div>
       </div>
