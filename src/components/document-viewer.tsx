@@ -7,7 +7,12 @@ import DownloadButton from '@components/shared/download-button';
 import SearchBar from '@components/shared/search-bar';
 import ToolbarButton from '@components/shared/toolbar-button';
 import { SearchIcon } from '@components/shared/icons';
-import { toolbarLabelStyle, toolbarSurfaceStyle } from '@components/shared/toolbar-styles';
+import {
+  TOOLBAR_INSET,
+  toolbarLabelStyle,
+  toolbarRowStyle,
+  toolbarSurfaceStyle
+} from '@components/shared/toolbar-styles';
 import useDocumentSearch from '@hooks/use-document-search';
 
 // Simple placeholder for SSR
@@ -622,10 +627,25 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       tabIndex={0}
     >
       {/* Top overlay row (aligned: page indicator | controls) */}
-      <div className="absolute inset-x-0 top-0 z-30 pointer-events-none" style={{ zIndex: 9999 }}>
-        <div className="flex items-center justify-between gap-2 p-2">
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          top: 0,
+          zIndex: 9999,
+          pointerEvents: 'none'
+        }}
+      >
+        <div
+          style={{
+            ...toolbarRowStyle,
+            justifyContent: 'space-between',
+            padding: `${TOOLBAR_INSET}px`
+          }}
+        >
           {/* Left: page indicator */}
-          <div className="pointer-events-auto">
+          <div style={{ pointerEvents: 'auto' }}>
             {numPages > 0 && (
               <div style={{ ...toolbarSurfaceStyle, ...toolbarLabelStyle }}>
                 Page {currentPage} of {numPages}
@@ -634,32 +654,30 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           </div>
 
           {/* Right: open + zoom + download */}
-          <div className="pointer-events-auto">
-            <div className="flex items-center space-x-2">
-              {enableSearch && (
-                <ToolbarButton
-                  onClick={search.isOpen ? search.close : search.open}
-                  title="Find in document"
-                  isActive={search.isOpen}
-                >
-                  <SearchIcon />
-                </ToolbarButton>
-              )}
+          <div style={{ ...toolbarRowStyle, pointerEvents: 'auto' }}>
+            {enableSearch && (
               <ToolbarButton
-                onClick={handleOpenSource}
-                title="Open in browser PDF viewer"
-                style={{ width: 'auto', ...toolbarLabelStyle }}
+                onClick={search.isOpen ? search.close : search.open}
+                title="Find in document"
+                isActive={search.isOpen}
               >
-                Open
+                <SearchIcon />
               </ToolbarButton>
-              <ToolbarButton onClick={zoomOut} title="Zoom out (Ctrl+-)">
-                -
-              </ToolbarButton>
-              <ToolbarButton onClick={zoomIn} title="Zoom in (Ctrl+=)">
-                +
-              </ToolbarButton>
-              <DownloadButton onClick={handleDownload} />
-            </div>
+            )}
+            <ToolbarButton
+              onClick={handleOpenSource}
+              title="Open in browser PDF viewer"
+              style={{ width: 'auto', ...toolbarLabelStyle }}
+            >
+              Open
+            </ToolbarButton>
+            <ToolbarButton onClick={zoomOut} title="Zoom out (Ctrl+-)">
+              -
+            </ToolbarButton>
+            <ToolbarButton onClick={zoomIn} title="Zoom in (Ctrl+=)">
+              +
+            </ToolbarButton>
+            <DownloadButton onClick={handleDownload} />
           </div>
         </div>
       </div>

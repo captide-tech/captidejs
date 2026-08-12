@@ -12,9 +12,14 @@ export const TOOLBAR_IDLE_BACKGROUND = 'rgba(255, 255, 255, 0.9)';
 export const TOOLBAR_HOVER_BACKGROUND = '#f8fafc';
 export const TOOLBAR_ACTIVE_BACKGROUND = '#f1f5f9';
 export const TOOLBAR_FOREGROUND = '#475569';
+export const TOOLBAR_MUTED_FOREGROUND = '#64748b';
+
+export const TOOLBAR_CONTROL_SIZE = 32;
+export const TOOLBAR_GAP = 8;
+export const TOOLBAR_INSET = 8;
 
 export const toolbarSurfaceStyle: CSSProperties = {
-  height: '32px',
+  height: `${TOOLBAR_CONTROL_SIZE}px`,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -30,4 +35,10 @@ export const toolbarSurfaceStyle: CSSProperties = {
 export const toolbarLabelStyle: CSSProperties = {
   padding: '0 12px',
   fontSize: '14px'
+};
+
+export const toolbarRowStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: `${TOOLBAR_GAP}px`
 };
