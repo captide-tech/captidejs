@@ -94,11 +94,11 @@ Pass `enableSearch` to add a find control to the viewer toolbar:
 <DocumentViewer enableSearch />
 ```
 
-It adds a search button next to the zoom controls, opens with `Ctrl/Cmd+F` while
-the viewer has focus, and closes with `Escape`. The bar reports the match count,
-steps between matches with the arrows or `Enter` / `Shift+Enter`, and offers a
-case-sensitivity toggle. Matching and highlighting are done by PDF.js's own
-`PDFFindController` against the rendered text layer.
+It adds a search button next to the zoom controls, which expands in place into a
+find bar. The bar opens with `Ctrl/Cmd+F` while the viewer has focus, closes with
+`Escape`, reports the match count, and steps between matches with the arrows or
+`Enter` / `Shift+Enter`. Search is case-insensitive. Matching and highlighting are
+done by PDF.js's own `PDFFindController` against the rendered text layer.
 
 The shortcut is bound to the viewer element rather than the document, so
 `Ctrl/Cmd+F` keeps working as the browser's own find everywhere else on the page.

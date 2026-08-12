@@ -10,7 +10,6 @@ const FIND_STATE_PENDING = 3;
 
 interface FindOverrides {
   query?: string;
-  caseSensitive?: boolean;
   findPrevious?: boolean;
 }
 
@@ -21,14 +20,12 @@ interface FindOverrides {
 const useDocumentSearch = (eventBus: any): DocumentSearchController => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [caseSensitive, setCaseSensitive] = useState(false);
   const [matchesCount, setMatchesCount] = useState(EMPTY_MATCHES_COUNT);
   const [findState, setFindState] = useState<number | null>(null);
   const [focusToken, setFocusToken] = useState(0);
 
   const isOpenRef = useRef(false);
   const queryRef = useRef('');
-  const caseSensitiveRef = useRef(false);
 
   const dispatchFind = useCallback(
     (type: string, overrides?: FindOverrides) => {
@@ -46,7 +43,7 @@ const useDocumentSearch = (eventBus: any): DocumentSearchController => {
         source: null,
         type,
         query: nextQuery,
-        caseSensitive: overrides?.caseSensitive ?? caseSensitiveRef.current,
+        caseSensitive: false,
         entireWord: false,
         highlightAll: true,
         findPrevious: overrides?.findPrevious ?? false,
@@ -118,13 +115,6 @@ const useDocumentSearch = (eventBus: any): DocumentSearchController => {
     [dispatchFind]
   );
 
-  const toggleCaseSensitive = useCallback(() => {
-    const nextCaseSensitive = !caseSensitiveRef.current;
-    caseSensitiveRef.current = nextCaseSensitive;
-    setCaseSensitive(nextCaseSensitive);
-    dispatchFind('casesensitivitychange', { caseSensitive: nextCaseSensitive });
-  }, [dispatchFind]);
-
   const findNext = useCallback(() => {
     dispatchFind('again', { findPrevious: false });
   }, [dispatchFind]);
@@ -136,7 +126,6 @@ const useDocumentSearch = (eventBus: any): DocumentSearchController => {
   return {
     isOpen,
     query,
-    caseSensitive,
     matchesCount,
     isPending: findState === FIND_STATE_PENDING,
     isNotFound: findState === FIND_STATE_NOT_FOUND,
@@ -144,7 +133,6 @@ const useDocumentSearch = (eventBus: any): DocumentSearchController => {
     open,
     close,
     setQuery: changeQuery,
-    toggleCaseSensitive,
     findNext,
     findPrevious
   };

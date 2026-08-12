@@ -10,12 +10,10 @@ import type { CSSProperties } from 'react';
 export const TOOLBAR_BORDER_COLOR = 'var(--captidejs-toolbar-border-color, #cbd5e1)';
 export const TOOLBAR_IDLE_BACKGROUND = 'rgba(255, 255, 255, 0.9)';
 export const TOOLBAR_HOVER_BACKGROUND = '#f8fafc';
-export const TOOLBAR_ACTIVE_BACKGROUND = '#f1f5f9';
 export const TOOLBAR_FOREGROUND = '#475569';
 export const TOOLBAR_MUTED_FOREGROUND = '#64748b';
 
 export const TOOLBAR_GHOST_HOVER_BACKGROUND = '#eef2f7';
-export const TOOLBAR_GHOST_ACTIVE_BACKGROUND = '#e2e8f0';
 
 export const TOOLBAR_CONTROL_SIZE = 32;
 export const TOOLBAR_GHOST_CONTROL_SIZE = 24;

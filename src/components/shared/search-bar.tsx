@@ -63,12 +63,6 @@ const separatorStyle: React.CSSProperties = {
   backgroundColor: '#e2e8f0'
 };
 
-const caseButtonStyle: React.CSSProperties = {
-  fontSize: '11px',
-  fontWeight: 600,
-  lineHeight: 1
-};
-
 const getStatusLabel = (search: DocumentSearchController): string => {
   if (!search.query) return '';
   if (search.matchesCount.total > 0) {
@@ -125,15 +119,6 @@ const SearchBar: React.FC<SearchBarProps> = ({ search }) => {
         aria-label="Find in document"
       />
       <span style={statusStyle}>{getStatusLabel(search)}</span>
-      <ToolbarButton
-        variant="ghost"
-        onClick={search.toggleCaseSensitive}
-        title="Match case"
-        isActive={search.caseSensitive}
-        style={caseButtonStyle}
-      >
-        Aa
-      </ToolbarButton>
       <ToolbarButton
         variant="ghost"
         onClick={search.findPrevious}

@@ -1,9 +1,6 @@
 import React from 'react';
 import {
-  TOOLBAR_ACTIVE_BACKGROUND,
   TOOLBAR_CONTROL_SIZE,
-  TOOLBAR_FOREGROUND,
-  TOOLBAR_GHOST_ACTIVE_BACKGROUND,
   TOOLBAR_GHOST_CONTROL_SIZE,
   TOOLBAR_GHOST_HOVER_BACKGROUND,
   TOOLBAR_HOVER_BACKGROUND,
@@ -18,8 +15,6 @@ interface ToolbarButtonProps {
   children: React.ReactNode;
   /** `ghost` is for controls nested inside another toolbar surface. */
   variant?: 'surface' | 'ghost';
-  /** Only set this for buttons that toggle something; it drives `aria-pressed`. */
-  isActive?: boolean;
   disabled?: boolean;
   style?: React.CSSProperties;
   className?: string;
@@ -30,16 +25,13 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({
   title,
   children,
   variant = 'surface',
-  isActive,
   disabled = false,
   style = {},
   className = ''
 }) => {
   const isGhost = variant === 'ghost';
-  const idleBackground = isGhost ? 'transparent' : TOOLBAR_IDLE_BACKGROUND;
-  const activeBackground = isGhost ? TOOLBAR_GHOST_ACTIVE_BACKGROUND : TOOLBAR_ACTIVE_BACKGROUND;
+  const background = isGhost ? 'transparent' : TOOLBAR_IDLE_BACKGROUND;
   const hoverBackground = isGhost ? TOOLBAR_GHOST_HOVER_BACKGROUND : TOOLBAR_HOVER_BACKGROUND;
-  const background = isActive ? activeBackground : idleBackground;
   const size = isGhost ? TOOLBAR_GHOST_CONTROL_SIZE : TOOLBAR_CONTROL_SIZE;
 
   const ghostStyle: React.CSSProperties = {
@@ -47,7 +39,7 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({
     boxShadow: 'none',
     backdropFilter: 'none',
     borderRadius: '4px',
-    color: isActive ? TOOLBAR_FOREGROUND : TOOLBAR_MUTED_FOREGROUND
+    color: TOOLBAR_MUTED_FOREGROUND
   };
 
   const buttonStyle: React.CSSProperties = {
@@ -77,7 +69,6 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({
       onClick={onClick}
       title={title}
       aria-label={title}
-      aria-pressed={isActive}
       disabled={disabled}
       style={buttonStyle}
       className={className}

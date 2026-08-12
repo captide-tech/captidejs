@@ -44,7 +44,6 @@ export interface DocumentSearchMatchesCount {
 export interface DocumentSearchController {
   isOpen: boolean;
   query: string;
-  caseSensitive: boolean;
   matchesCount: DocumentSearchMatchesCount;
   isPending: boolean;
   isNotFound: boolean;
@@ -53,7 +52,6 @@ export interface DocumentSearchController {
   open: () => void;
   close: () => void;
   setQuery: (query: string) => void;
-  toggleCaseSensitive: () => void;
   findNext: () => void;
   findPrevious: () => void;
 }
