@@ -123,8 +123,7 @@ const inputStyle: React.CSSProperties = {
 
 const compactInputStyle: React.CSSProperties = {
   ...inputStyle,
-  minWidth: '28px',
-  fontSize: '12px'
+  minWidth: '28px'
 };
 
 const statusStyle: React.CSSProperties = {
