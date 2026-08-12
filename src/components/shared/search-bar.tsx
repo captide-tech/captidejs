@@ -14,6 +14,7 @@ const containerStyle: React.CSSProperties = {
   top: '48px',
   right: '8px',
   zIndex: 9999,
+  maxWidth: 'calc(100% - 16px)',
   display: 'flex',
   alignItems: 'center',
   gap: '4px',
@@ -27,6 +28,8 @@ const containerStyle: React.CSSProperties = {
 
 const inputStyle: React.CSSProperties = {
   width: '176px',
+  minWidth: 0,
+  flex: '1 1 auto',
   height: '32px',
   padding: '0 8px',
   border: 'none',
@@ -37,6 +40,7 @@ const inputStyle: React.CSSProperties = {
 };
 
 const statusStyle: React.CSSProperties = {
+  flexShrink: 0,
   minWidth: '76px',
   padding: '0 4px',
   color: '#64748b',

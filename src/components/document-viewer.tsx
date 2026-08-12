@@ -175,6 +175,13 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     return () => el.removeEventListener('keydown', handler);
   }, [zoomIn, zoomOut, resetZoom, enableSearch, search.isOpen, search.open, search.close]);
 
+  // Withdrawing search has to clear its highlights; the bar itself is gone by then
+  useEffect(() => {
+    if (!enableSearch && search.isOpen) {
+      search.close();
+    }
+  }, [enableSearch, search.isOpen, search.close]);
+
   // Handle wheel zoom
   useEffect(() => {
     const el = containerRef.current;
@@ -290,6 +297,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     let pdfViewerInstance: any = null;
     let pdfDocumentInstance: PDFDocumentProxy | null = null;
     let eventBusInstance: any = null;
+    let handlePagesInit: ((evt?: any) => void) | null = null;
+    let handlePageChanging: ((evt: any) => void) | null = null;
     
     const loadAndRenderPdf = async () => {
       try {
@@ -343,7 +352,10 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         pdfLinkService.setViewer(pdfViewerInstance);
         
         // Set up event listeners
-        eventBusInstance.on('pagesinit', () => {
+        handlePagesInit = () => {
+          // A superseded load can still reach this point, and its viewer is gone
+          if (!mounted) return;
+          
           // Viewer is ready once pages are initialized
           setNumPages(pdfViewerInstance?.pagesCount || pdfDocumentInstance?.numPages || 0);
           setViewer(pdfViewerInstance);
@@ -383,14 +395,17 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
               }
             }
           }
-        });
+        };
         
-        eventBusInstance.on('pagechanging', (evt: any) => {
+        handlePageChanging = (evt: any) => {
           if (mounted) {
             const pageNumber = parseInt(evt.pageNumber, 10) || 1;
             setCurrentPage(pageNumber);
           }
-        });
+        };
+        
+        eventBusInstance.on('pagesinit', handlePagesInit);
+        eventBusInstance.on('pagechanging', handlePageChanging);
         
         // Load the document
         const loadingTask = pdfjsLib.getDocument({
@@ -440,9 +455,10 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       mounted = false;
       
       // Clean up
+      // EventBus.off only removes a listener when given the same reference
       if (eventBusInstance) {
-        eventBusInstance.off('pagesinit');
-        eventBusInstance.off('pagechanging');
+        if (handlePagesInit) eventBusInstance.off('pagesinit', handlePagesInit);
+        if (handlePageChanging) eventBusInstance.off('pagechanging', handlePageChanging);
       }
       
       setEventBus(null);

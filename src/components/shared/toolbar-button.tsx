@@ -4,6 +4,7 @@ interface ToolbarButtonProps {
   onClick: () => void;
   title: string;
   children: React.ReactNode;
+  /** Only set this for buttons that toggle something; it drives `aria-pressed`. */
   isActive?: boolean;
   disabled?: boolean;
   style?: React.CSSProperties;
@@ -21,7 +22,7 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({
   onClick,
   title,
   children,
-  isActive = false,
+  isActive,
   disabled = false,
   style = {},
   className = ''
@@ -31,6 +32,7 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({
   const buttonStyle: React.CSSProperties = {
     width: '32px',
     height: '32px',
+    flexShrink: 0,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
