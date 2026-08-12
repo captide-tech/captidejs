@@ -20,7 +20,6 @@ export const TOOLBAR_GHOST_CONTROL_SIZE = 24;
 export const TOOLBAR_GAP = 8;
 export const TOOLBAR_INSET = 8;
 export const TOOLBAR_FIELD_MAX_WIDTH = 420;
-export const TOOLBAR_FIELD_MIN_WIDTH = 68;
 
 export const toolbarSurfaceStyle: CSSProperties = {
   height: `${TOOLBAR_CONTROL_SIZE}px`,

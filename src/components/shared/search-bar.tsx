@@ -3,7 +3,6 @@ import ToolbarButton from '@components/shared/toolbar-button';
 import { ChevronDownIcon, ChevronUpIcon, CloseIcon, SearchIcon } from '@components/shared/icons';
 import {
   TOOLBAR_FIELD_MAX_WIDTH,
-  TOOLBAR_FIELD_MIN_WIDTH,
   TOOLBAR_MUTED_FOREGROUND,
   toolbarSurfaceStyle
 } from '@components/shared/toolbar-styles';
@@ -32,42 +31,69 @@ const FULL_LAYOUT: SearchBarLayout = {
   showClose: true
 };
 
-// Widest-first: the first step the measured bar can fit wins, so a cramped bar
+const PART_WIDTHS = {
+  padding: 12,
+  gap: 4,
+  icon: 16,
+  input: 48,
+  compactInput: 36,
+  status: 64,
+  compactStatus: 28,
+  stepper: 24,
+  separator: 5,
+  close: 24
+};
+
+// Widest-first: the first step that fits the measured bar wins, so a cramped bar
 // drops detail in a fixed order rather than pushing the rest of the toolbar out.
-const LAYOUT_STEPS: Array<{ minWidth: number; layout: SearchBarLayout }> = [
-  { minWidth: 240, layout: FULL_LAYOUT },
-  { minWidth: 204, layout: { ...FULL_LAYOUT, compactStatus: true } },
-  { minWidth: 140, layout: { ...FULL_LAYOUT, compactStatus: true, showSteppers: false } },
+const LAYOUT_STEPS: SearchBarLayout[] = [
+  FULL_LAYOUT,
+  { ...FULL_LAYOUT, compactStatus: true },
+  { ...FULL_LAYOUT, compactStatus: true, showSteppers: false },
+  { ...FULL_LAYOUT, compactStatus: true, showSteppers: false, showStatus: false },
   {
-    minWidth: 108,
-    layout: { ...FULL_LAYOUT, compactStatus: true, showSteppers: false, showStatus: false }
+    ...FULL_LAYOUT,
+    compactStatus: true,
+    showSteppers: false,
+    showStatus: false,
+    compactInput: true
   },
   {
-    minWidth: 96,
-    layout: {
-      ...FULL_LAYOUT,
-      compactStatus: true,
-      showSteppers: false,
-      showStatus: false,
-      compactInput: true
-    }
-  },
-  {
-    minWidth: 0,
-    layout: {
-      compactStatus: true,
-      showSteppers: false,
-      showStatus: false,
-      compactInput: true,
-      showClose: false
-    }
+    compactStatus: true,
+    showSteppers: false,
+    showStatus: false,
+    compactInput: true,
+    showClose: false
   }
 ];
+
+const getRequiredWidth = (layout: SearchBarLayout, hasStatus: boolean): number => {
+  const parts = [
+    PART_WIDTHS.icon,
+    layout.compactInput ? PART_WIDTHS.compactInput : PART_WIDTHS.input
+  ];
+
+  if (hasStatus && layout.showStatus) {
+    parts.push(layout.compactStatus ? PART_WIDTHS.compactStatus : PART_WIDTHS.status);
+  }
+  if (layout.showSteppers) {
+    parts.push(PART_WIDTHS.stepper, PART_WIDTHS.stepper);
+    if (layout.showClose) parts.push(PART_WIDTHS.separator);
+  }
+  if (layout.showClose) {
+    parts.push(PART_WIDTHS.close);
+  }
+
+  const content = parts.reduce((total, part) => total + part, 0);
+  return content + (parts.length - 1) * PART_WIDTHS.gap + PART_WIDTHS.padding;
+};
+
+const MIN_WIDTH = getRequiredWidth(LAYOUT_STEPS[LAYOUT_STEPS.length - 1], false);
 
 const containerStyle: React.CSSProperties = {
   ...toolbarSurfaceStyle,
   flex: '1 1 auto',
-  minWidth: `${TOOLBAR_FIELD_MIN_WIDTH}px`,
+  minWidth: `${MIN_WIDTH}px`,
   maxWidth: `${TOOLBAR_FIELD_MAX_WIDTH}px`,
   justifyContent: 'flex-start',
   gap: '4px',
@@ -136,18 +162,19 @@ const getStatusLabel = (search: DocumentSearchController, compact: boolean): str
   return '';
 };
 
-const resolveLayout = (width: number | null): SearchBarLayout => {
+const resolveLayout = (width: number | null, hasStatus: boolean): SearchBarLayout => {
   if (width === null) return FULL_LAYOUT;
 
-  const step = LAYOUT_STEPS.find((candidate) => width >= candidate.minWidth);
-  return step ? step.layout : FULL_LAYOUT;
+  const step = LAYOUT_STEPS.find((candidate) => getRequiredWidth(candidate, hasStatus) <= width);
+  return step ?? LAYOUT_STEPS[LAYOUT_STEPS.length - 1];
 };
 
 const SearchBar: React.FC<SearchBarProps> = ({ search }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const width = useElementWidth(containerRef);
-  const layout = resolveLayout(width);
+  const hasStatus = getStatusLabel(search, false) !== '';
+  const layout = resolveLayout(width, hasStatus);
   const hasMatches = search.matchesCount.total > 0;
 
   useEffect(() => {
@@ -191,7 +218,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ search }) => {
         placeholder="Find in document"
         aria-label="Find in document"
       />
-      {layout.showStatus && (
+      {hasStatus && layout.showStatus && (
         <span style={layout.compactStatus ? compactStatusStyle : statusStyle}>
           {getStatusLabel(search, layout.compactStatus)}
         </span>
