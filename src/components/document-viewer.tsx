@@ -7,6 +7,7 @@ import DownloadButton from '@components/shared/download-button';
 import SearchBar from '@components/shared/search-bar';
 import ToolbarButton from '@components/shared/toolbar-button';
 import { SearchIcon } from '@components/shared/icons';
+import { toolbarLabelStyle, toolbarSurfaceStyle } from '@components/shared/toolbar-styles';
 import useDocumentSearch from '@hooks/use-document-search';
 
 // Simple placeholder for SSR
@@ -93,6 +94,16 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     }
   }, [currentHighlight]);
 
+
+  const handleOpenSource = () => {
+    if (!pdfDocument) return;
+
+    const sourceUrl =
+      typeof pdfDocument.metadata?.sourceURL === 'string' && pdfDocument.metadata.sourceURL.trim()
+        ? pdfDocument.metadata.sourceURL
+        : pdfDocument.originalFileUrl;
+    window.open(sourceUrl, '_blank', 'noopener,noreferrer');
+  };
 
   // Handle download functionality
   const handleDownload = () => {
@@ -616,7 +627,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           {/* Left: page indicator */}
           <div className="pointer-events-auto">
             {numPages > 0 && (
-              <div className="h-8 px-3 flex items-center justify-center text-sm bg-white/90 backdrop-blur-sm text-gray-700 font-medium rounded-md shadow-sm border border-gray-200/50">
+              <div style={{ ...toolbarSurfaceStyle, ...toolbarLabelStyle }}>
                 Page {currentPage} of {numPages}
               </div>
             )}
@@ -634,33 +645,19 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                   <SearchIcon />
                 </ToolbarButton>
               )}
-              <button
-                onClick={() => {
-                  const sourceUrl =
-                    typeof pdfDocument.metadata?.sourceURL === 'string' && pdfDocument.metadata.sourceURL.trim()
-                      ? pdfDocument.metadata.sourceURL
-                      : pdfDocument.originalFileUrl;
-                  window.open(sourceUrl, '_blank', 'noopener,noreferrer');
-                }}
-                className="h-8 px-3 flex items-center justify-center bg-white/90 backdrop-blur-sm text-gray-700 rounded-md shadow-sm border border-gray-200/50 hover:bg-gray-50 transition-colors font-medium cursor-pointer text-sm"
+              <ToolbarButton
+                onClick={handleOpenSource}
                 title="Open in browser PDF viewer"
+                style={{ width: 'auto', ...toolbarLabelStyle }}
               >
                 Open
-              </button>
-              <button
-                onClick={zoomOut}
-                className="w-8 h-8 flex items-center justify-center bg-white/90 backdrop-blur-sm text-gray-700 rounded-md shadow-sm border border-gray-200/50 hover:bg-gray-50 transition-colors font-medium cursor-pointer"
-                title="Zoom out (Ctrl+-)"
-              >
+              </ToolbarButton>
+              <ToolbarButton onClick={zoomOut} title="Zoom out (Ctrl+-)">
                 -
-              </button>
-              <button
-                onClick={zoomIn}
-                className="w-8 h-8 flex items-center justify-center bg-white/90 backdrop-blur-sm text-gray-700 rounded-md shadow-sm border border-gray-200/50 hover:bg-gray-50 transition-colors font-medium cursor-pointer"
-                title="Zoom in (Ctrl+=)"
-              >
+              </ToolbarButton>
+              <ToolbarButton onClick={zoomIn} title="Zoom in (Ctrl+=)">
                 +
-              </button>
+              </ToolbarButton>
               <DownloadButton onClick={handleDownload} />
             </div>
           </div>

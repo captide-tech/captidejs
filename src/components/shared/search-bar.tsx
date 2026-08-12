@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import ToolbarButton from '@components/shared/toolbar-button';
 import { ChevronDownIcon, ChevronUpIcon, CloseIcon } from '@components/shared/icons';
+import { TOOLBAR_BORDER_COLOR, TOOLBAR_IDLE_BACKGROUND } from '@components/shared/toolbar-styles';
 import type { DocumentSearchController } from '@types';
 
 const INPUT_CLASS_NAME = 'captidejs-search-input';
@@ -20,9 +21,9 @@ const containerStyle: React.CSSProperties = {
   gap: '4px',
   padding: '4px',
   borderRadius: '6px',
-  backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  backgroundColor: TOOLBAR_IDLE_BACKGROUND,
   backdropFilter: 'blur(4px)',
-  border: '1px solid rgba(203, 213, 225, 0.5)',
+  border: `1px solid ${TOOLBAR_BORDER_COLOR}`,
   boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
 };
 

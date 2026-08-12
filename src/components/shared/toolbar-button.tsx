@@ -1,4 +1,10 @@
 import React from 'react';
+import {
+  TOOLBAR_ACTIVE_BACKGROUND,
+  TOOLBAR_HOVER_BACKGROUND,
+  TOOLBAR_IDLE_BACKGROUND,
+  toolbarSurfaceStyle
+} from '@components/shared/toolbar-styles';
 
 interface ToolbarButtonProps {
   onClick: () => void;
@@ -11,13 +17,6 @@ interface ToolbarButtonProps {
   className?: string;
 }
 
-const IDLE_BACKGROUND = 'rgba(255, 255, 255, 0.9)';
-const HOVER_BACKGROUND = '#f8fafc';
-const ACTIVE_BACKGROUND = '#f1f5f9';
-
-/**
- * The shared look of every control overlaid on the document.
- */
 const ToolbarButton: React.FC<ToolbarButtonProps> = ({
   onClick,
   title,
@@ -27,21 +26,13 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({
   style = {},
   className = ''
 }) => {
-  const background = isActive ? ACTIVE_BACKGROUND : IDLE_BACKGROUND;
+  const background = isActive ? TOOLBAR_ACTIVE_BACKGROUND : TOOLBAR_IDLE_BACKGROUND;
 
   const buttonStyle: React.CSSProperties = {
+    ...toolbarSurfaceStyle,
     width: '32px',
-    height: '32px',
     flexShrink: 0,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: '6px',
     backgroundColor: background,
-    backdropFilter: 'blur(4px)',
-    color: '#475569',
-    border: '1px solid rgba(203, 213, 225, 0.5)',
-    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
     transition: 'background-color 0.2s ease',
     cursor: disabled ? 'default' : 'pointer',
     opacity: disabled ? 0.5 : 1,
@@ -50,7 +41,7 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({
 
   const handleMouseOver = (event: React.MouseEvent<HTMLButtonElement>) => {
     if (disabled) return;
-    event.currentTarget.style.backgroundColor = HOVER_BACKGROUND;
+    event.currentTarget.style.backgroundColor = TOOLBAR_HOVER_BACKGROUND;
   };
 
   const handleMouseOut = (event: React.MouseEvent<HTMLButtonElement>) => {

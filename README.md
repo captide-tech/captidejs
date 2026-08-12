@@ -113,6 +113,15 @@ viewer:
 }
 ```
 
+Every control in the overlay toolbar — the page indicator, find, `Open`, zoom and
+download — shares one border color, tunable the same way:
+
+```css
+:root {
+  --captidejs-toolbar-border-color: #cbd5e1;
+}
+```
+
 ## PDF text selection / Ctrl+F alignment (PDF.js vs native viewer)
 
 This package uses PDF.js to render PDFs. PDF.js renders the page visually to a canvas, and reconstructs a separate HTML "text layer" for selection and find/highlighting. Some PDFs (fonts/transforms/OCR quirks) can cause that reconstructed text layer to be offset from the canvas, leading to shifted selection boxes or Ctrl/Cmd+F highlights.
