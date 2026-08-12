@@ -32,7 +32,7 @@ const iconStyle: React.CSSProperties = {
 };
 
 const inputStyle: React.CSSProperties = {
-  minWidth: 0,
+  minWidth: '40px',
   flex: '1 1 auto',
   height: '100%',
   padding: '0 4px',
@@ -45,11 +45,14 @@ const inputStyle: React.CSSProperties = {
 };
 
 const statusStyle: React.CSSProperties = {
-  flexShrink: 0,
+  flexShrink: 1,
+  minWidth: 0,
   color: TOOLBAR_MUTED_FOREGROUND,
   fontSize: '12px',
   fontWeight: 400,
-  whiteSpace: 'nowrap'
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis'
 };
 
 const separatorStyle: React.CSSProperties = {

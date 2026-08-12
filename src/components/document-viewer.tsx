@@ -646,7 +646,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         >
           {/* Left: page indicator */}
           <div style={{ flexShrink: 0, pointerEvents: 'auto' }}>
-            {numPages > 0 && !search.isOpen && (
+            {numPages > 0 && (
               <div style={{ ...toolbarSurfaceStyle, ...toolbarLabelStyle }}>
                 Page {currentPage} of {numPages}
               </div>
