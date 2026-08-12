@@ -36,6 +36,28 @@ export interface DocumentViewerState {
 // FetchDocumentFn for the new model
 export type FetchDocumentFn = (documentId: string) => Promise<Document>;
 
+export interface DocumentSearchMatchesCount {
+  current: number;
+  total: number;
+}
+
+export interface DocumentSearchController {
+  isOpen: boolean;
+  query: string;
+  caseSensitive: boolean;
+  matchesCount: DocumentSearchMatchesCount;
+  isPending: boolean;
+  isNotFound: boolean;
+  /** Increments whenever the search input should take focus. */
+  focusToken: number;
+  open: () => void;
+  close: () => void;
+  setQuery: (query: string) => void;
+  toggleCaseSensitive: () => void;
+  findNext: () => void;
+  findPrevious: () => void;
+}
+
 // DocumentViewerContextValue for the new model
 export interface DocumentViewerContextValue extends DocumentViewerState {
   updateDocumentViewer: (updates: Partial<DocumentViewerState>) => void;

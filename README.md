@@ -86,6 +86,33 @@ await loadDocument(
 );
 ```
 
+### Find in document
+
+Pass `enableSearch` to add a find control to the viewer toolbar:
+
+```jsx
+<DocumentViewer enableSearch />
+```
+
+It adds a search button next to the zoom controls, opens with `Ctrl/Cmd+F` while
+the viewer has focus, and closes with `Escape`. The bar reports the match count,
+steps between matches with the arrows or `Enter` / `Shift+Enter`, and offers a
+case-sensitivity toggle. Matching and highlighting are done by PDF.js's own
+`PDFFindController` against the rendered text layer.
+
+The shortcut is bound to the viewer element rather than the document, so
+`Ctrl/Cmd+F` keeps working as the browser's own find everywhere else on the page.
+
+Highlight colors follow the same CSS variable convention as the rest of the
+viewer:
+
+```css
+:root {
+  --captidejs-find-highlight-bg: rgba(255, 235, 59, 0.3);
+  --captidejs-find-highlight-selected-bg: rgba(255, 235, 59, 0.5);
+}
+```
+
 ## PDF text selection / Ctrl+F alignment (PDF.js vs native viewer)
 
 This package uses PDF.js to render PDFs. PDF.js renders the page visually to a canvas, and reconstructs a separate HTML "text layer" for selection and find/highlighting. Some PDFs (fonts/transforms/OCR quirks) can cause that reconstructed text layer to be offset from the canvas, leading to shifted selection boxes or Ctrl/Cmd+F highlights.

@@ -4,6 +4,10 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { createRectangleHighlight, removeHighlight, type CurrentHighlight } from '@utils/pdf-highlighting';
 import Loader from '@components/shared/loader';
 import DownloadButton from '@components/shared/download-button';
+import SearchBar from '@components/shared/search-bar';
+import ToolbarButton from '@components/shared/toolbar-button';
+import { SearchIcon } from '@components/shared/icons';
+import useDocumentSearch from '@hooks/use-document-search';
 
 // Simple placeholder for SSR
 const PDFPlaceholder: React.FC<{className?: string; style?: React.CSSProperties}> = ({
@@ -25,11 +29,14 @@ const PDFPlaceholder: React.FC<{className?: string; style?: React.CSSProperties}
 interface DocumentViewerProps {
   className?: string;
   style?: React.CSSProperties;
+  /** Adds a find-in-document control to the toolbar, opened with Ctrl/Cmd+F. */
+  enableSearch?: boolean;
 }
 
 const DocumentViewer: React.FC<DocumentViewerProps> = ({
   className = 'w-full h-full',
   style,
+  enableSearch = false,
 }) => {
   const { 
     document: pdfDocument, 
@@ -49,7 +56,10 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [pdfJsLoaded, setPdfJsLoaded] = useState(false);
   const [viewer, setViewer] = useState<any>(null);
+  const [eventBus, setEventBus] = useState<any>(null);
   const [currentHighlight, setCurrentHighlight] = useState<CurrentHighlight | null>(null);
+
+  const search = useDocumentSearch(eventBus);
   
   // Only run in browser
   const isBrowser = typeof window !== 'undefined';
@@ -130,6 +140,12 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     if (!el) return;
     
     const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && enableSearch && search.isOpen) {
+        e.preventDefault();
+        search.close();
+        return;
+      }
+
       if (e.ctrlKey || e.metaKey) {
         switch (e.key) {
           case '=':
@@ -145,13 +161,19 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             e.preventDefault();
             resetZoom();
             break;
+          case 'f':
+          case 'F':
+            if (!enableSearch) break;
+            e.preventDefault();
+            search.open();
+            break;
         }
       }
     };
     
     el.addEventListener('keydown', handler);
     return () => el.removeEventListener('keydown', handler);
-  }, [zoomIn, zoomOut, resetZoom]);
+  }, [zoomIn, zoomOut, resetZoom, enableSearch, search.isOpen, search.open, search.close]);
 
   // Handle wheel zoom
   useEffect(() => {
@@ -233,11 +255,11 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
             }
             /* Override PDF.js search highlight colors to yellow */
             .pdfViewer .textLayer .highlight {
-              background-color: rgba(255, 235, 59, 0.3) !important;
+              background-color: var(--captidejs-find-highlight-bg, rgba(255, 235, 59, 0.3)) !important;
               color: inherit !important;
             }
             .pdfViewer .textLayer .highlight.selected {
-              background-color: rgba(255, 235, 59, 0.5) !important;
+              background-color: var(--captidejs-find-highlight-selected-bg, rgba(255, 235, 59, 0.5)) !important;
             }
           `;
           document.head.appendChild(customStyles);
@@ -299,12 +321,20 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           eventBus: eventBusInstance,
         });
         
+        // Create find controller; it stays inert until a `find` event is dispatched
+        const pdfFindController = new viewerModule.PDFFindController({
+          linkService: pdfLinkService,
+          eventBus: eventBusInstance,
+          updateMatchesCountOnProgress: true,
+        });
+        
         // Create viewer
         pdfViewerInstance = new viewerModule.PDFViewer({
           container: viewerContainer,
           viewer: viewerElement,
           eventBus: eventBusInstance,
           linkService: pdfLinkService,
+          findController: pdfFindController,
           // Use the non-enhanced text layer mode; it tends to be more reliable across PDFs and CSS environments.
           textLayerMode: 1,
           removePageBorders: false,
@@ -317,6 +347,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           // Viewer is ready once pages are initialized
           setNumPages(pdfViewerInstance?.pagesCount || pdfDocumentInstance?.numPages || 0);
           setViewer(pdfViewerInstance);
+          setEventBus(eventBusInstance);
 
           // Set initial zoom level
           if (pdfViewerInstance && zoomLevel !== undefined) {
@@ -413,6 +444,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
         eventBusInstance.off('pagesinit');
         eventBusInstance.off('pagechanging');
       }
+      
+      setEventBus(null);
       
       if (pdfDocumentInstance) {
         pdfDocumentInstance.destroy();
@@ -576,6 +609,15 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           {/* Right: open + zoom + download */}
           <div className="pointer-events-auto">
             <div className="flex items-center space-x-2">
+              {enableSearch && (
+                <ToolbarButton
+                  onClick={search.isOpen ? search.close : search.open}
+                  title="Find in document"
+                  isActive={search.isOpen}
+                >
+                  <SearchIcon />
+                </ToolbarButton>
+              )}
               <button
                 onClick={() => {
                   const sourceUrl =
@@ -608,6 +650,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
           </div>
         </div>
       </div>
+
+      {enableSearch && search.isOpen && <SearchBar search={search} />}
 
       {/* Main content container */}
       <div 
