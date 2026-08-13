@@ -1,1 +1,1 @@
-export { default as DocumentViewer } from '@components/document-viewer'; 
+export { default as DocumentViewer } from './document-viewer'; 

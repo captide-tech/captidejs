@@ -1,5 +1,6 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { forwardRef, useRef, useEffect, useImperativeHandle, useState, useCallback } from 'react';
 import { useDocumentViewer } from '@contexts/document-viewer-context';
+import type { DocumentViewerHandle } from '../types';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { createRectangleHighlight, removeHighlight, type CurrentHighlight } from '@utils/pdf-highlighting';
 import Loader from '@components/shared/loader';
@@ -39,11 +40,11 @@ interface DocumentViewerProps {
   enableSearch?: boolean;
 }
 
-const DocumentViewer: React.FC<DocumentViewerProps> = ({
+const DocumentViewer = forwardRef<DocumentViewerHandle, DocumentViewerProps>(({
   className = 'w-full h-full',
   style,
   enableSearch = false,
-}) => {
+}, ref) => {
   const { 
     document: pdfDocument, 
     isLoading, 
@@ -66,6 +67,22 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   const [currentHighlight, setCurrentHighlight] = useState<CurrentHighlight | null>(null);
 
   const search = useDocumentSearch(eventBus);
+  const searchRef = useRef(search);
+  const enableSearchRef = useRef(enableSearch);
+
+  useEffect(() => {
+    searchRef.current = search;
+    enableSearchRef.current = enableSearch;
+  });
+
+  useImperativeHandle(ref, () => ({
+    openSearch: () => {
+      if (!enableSearchRef.current) return;
+      searchRef.current.open();
+    },
+    closeSearch: () => searchRef.current.close(),
+    isSearchOpen: () => enableSearchRef.current && searchRef.current.isOpen
+  }), []);
   
   // Only run in browser
   const isBrowser = typeof window !== 'undefined';
@@ -158,6 +175,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && enableSearch && search.isOpen) {
         e.preventDefault();
+        // Closing the find bar consumes the keystroke: hosts commonly close the
+        // whole viewer on Escape, and both happening at once loses the bar.
+        e.stopPropagation();
         search.close();
         return;
       }
@@ -752,6 +772,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       )}
     </div>
   );
-};
+});
+
+DocumentViewer.displayName = 'DocumentViewer';
 
 export default DocumentViewer; 

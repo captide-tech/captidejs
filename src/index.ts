@@ -11,8 +11,9 @@ export type {
   Document, 
   DocumentViewerState,
   DocumentViewerContextValue,
-  DocumentSearchController,
+  DocumentSearchController, 
   DocumentSearchMatchesCount,
+  DocumentViewerHandle,
   FetchDocumentFn,
   FileType
 } from './types'; 

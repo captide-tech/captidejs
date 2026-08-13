@@ -103,6 +103,38 @@ done by PDF.js's own `PDFFindController` against the rendered text layer.
 The shortcut is bound to the viewer element rather than the document, so
 `Ctrl/Cmd+F` keeps working as the browser's own find everywhere else on the page.
 
+#### Driving the find bar from the host
+
+When the viewer owns the whole screen, "only while focused" is too narrow — the
+user expects `Ctrl/Cmd+F` to reach it wherever focus happens to be. Take a ref
+to set your own policy:
+
+```jsx
+const viewerRef = useRef(null)
+
+useEffect(() => {
+  const onKeyDown = (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+      e.preventDefault()
+      viewerRef.current?.openSearch()
+    } else if (e.key === 'Escape' && viewerRef.current?.isSearchOpen()) {
+      e.stopPropagation()
+      viewerRef.current.closeSearch()
+    }
+  }
+  window.addEventListener('keydown', onKeyDown, true)
+  return () => window.removeEventListener('keydown', onKeyDown, true)
+}, [])
+
+<DocumentViewer enableSearch ref={viewerRef} />
+```
+
+The handle is `{ openSearch, closeSearch, isSearchOpen }`; `openSearch` is a
+no-op unless `enableSearch` is set. Listening in the capture phase is what lets
+`Escape` close the find bar before a host-level handler closes the viewer around
+it. The viewer's own `Escape` also stops propagating once it has closed the bar,
+so a host that closes on `Escape` won't do both at once.
+
 Highlight colors follow the same CSS variable convention as the rest of the
 viewer:
 

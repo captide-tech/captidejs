@@ -1,4 +1,4 @@
-import { FileType } from '@types';
+import { FileType } from '../types';
 
 /**
  * Helper function to check if document is a proxy statement

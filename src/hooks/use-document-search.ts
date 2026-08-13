@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { DocumentSearchController, DocumentSearchMatchesCount } from '@types';
+import type { DocumentSearchController, DocumentSearchMatchesCount } from '../types';
 
 const EMPTY_MATCHES_COUNT: DocumentSearchMatchesCount = { current: 0, total: 0 };
 
