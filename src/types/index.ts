@@ -57,6 +57,17 @@ export interface DocumentSearchController {
 }
 
 // DocumentViewerContextValue for the new model
+/**
+ * Imperative handle on DocumentViewer, for hosts that want to drive the find
+ * bar from their own shortcut. The viewer's own Ctrl/Cmd+F only fires while
+ * focus sits inside it, which is too narrow when the viewer owns the screen.
+ */
+export interface DocumentViewerHandle {
+  openSearch: () => void;
+  closeSearch: () => void;
+  isSearchOpen: () => boolean;
+}
+
 export interface DocumentViewerContextValue extends DocumentViewerState {
   updateDocumentViewer: (updates: Partial<DocumentViewerState>) => void;
   setDocument: (document: Document | null) => void;
