@@ -7,7 +7,7 @@ import {
   toolbarSurfaceStyle
 } from '@components/shared/toolbar-styles';
 import useElementWidth from '@hooks/use-element-width';
-import type { DocumentSearchController } from '../../types';
+import type { DocumentSearchController } from '@types';
 
 const INPUT_CLASS_NAME = 'captidejs-search-input';
 

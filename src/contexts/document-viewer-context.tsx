@@ -4,7 +4,7 @@ import {
   DocumentViewerContextValue,
   Document,
   FetchDocumentFn
-} from '../types';
+} from '@types';
 
 // Initial state for the context
 const initialState: DocumentViewerState = {
