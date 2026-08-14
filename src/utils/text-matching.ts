@@ -71,7 +71,7 @@ const searchCandidates = (normalizedSearchText: string): string[] => {
 };
 
 const nthIndexOf = (haystack: string, needle: string, occurrence: number): number => {
-  const target = Math.max(1, occurrence);
+  const target = Number.isFinite(occurrence) ? Math.max(1, occurrence) : 1;
   let index = -1;
   for (let found = 0; found < target; found += 1) {
     index = haystack.indexOf(needle, index + 1);
