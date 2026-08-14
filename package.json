@@ -50,6 +50,7 @@
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "jest": "^30.0.4",
+    "jest-environment-jsdom": "^30.4.1",
     "pdfjs-dist": "^5.2.0",
     "rollup": "^2.74.1",
     "rollup-plugin-peer-deps-external": "^2.2.4",
