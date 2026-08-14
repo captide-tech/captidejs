@@ -12,6 +12,7 @@
     "build": "rollup -c",
     "dev": "rollup -c -w",
     "test": "jest",
+    "check-declarations": "node scripts/check-declarations.mjs",
     "lint": "eslint src/**/*",
     "prepublishOnly": "npm run build"
   },
