@@ -237,7 +237,7 @@ export const findTextInPDF = async (
  * One rect per line of text. A single rect spanning a multi-line match would
  * cover the margins and anything indented beside it.
  */
-const buildLineRects = (matched: MatchedTextItem[], viewport: any): PageRect[] => {
+export const buildLineRects = (matched: MatchedTextItem[], viewport: any): PageRect[] => {
   return groupIntoLines(matched).map(line => {
     let minX = Infinity;
     let minY = Infinity;
