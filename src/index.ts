@@ -15,5 +15,7 @@ export type {
   DocumentSearchMatchesCount,
   DocumentViewerHandle,
   FetchDocumentFn,
-  FileType
+  FileType,
+  HighlightAnchor,
+  LoadDocumentOptions
 } from './types'; 

@@ -62,29 +62,23 @@ import { useDocumentViewer } from '@contexts/document-viewer-context';
 const { loadDocument } = useDocumentViewer();
 
 // Load a document and highlight specific text
-await loadDocument(
-  'document-id-123', 
-  'element-id-456', 
-  'Total net sales $95,359 $90,753 $219,659 $210,328'
-);
+await loadDocument('document-id-123', {
+  page: 12,
+  snippet: 'Total net sales $95,359 $90,753 $219,659 $210,328',
+  matchIndex: 1
+});
 ```
 
 The citation snippet feature provides intelligent text search that can handle:
 - **Table data with varying spacing** (e.g., financial data in rows)
-- **Fuzzy matching** when exact text isn't found
-- **Cross-page search** if the text appears on different pages
-- **Visual highlighting** with animated overlays
+- **Whitespace and punctuation differences** between the excerpt and the extracted text
+- **Long excerpts** whose tail doesn't match, by falling back to a prefix
+- **Repeated text**, via `matchIndex` (1-based, defaults to the first match)
+- **Passages spanning a page break**
+- **Per-line highlighting**, scrolled to the passage rather than the page
 
-### Advanced Usage
-
-```javascript
-// Load document with specific element highlighting and citation
-await loadDocument(
-  'https://api.captide.co/documents/123', 
-  'highlight-element-789',
-  'Revenue increased 15% year-over-year to $2.5 billion'
-);
-```
+The positional form `loadDocument(documentId, pageNumber?, citationSnippet?, legacyElementId?)`
+still works; only the options form accepts `matchIndex`.
 
 ### Find in document
 
@@ -129,11 +123,34 @@ useEffect(() => {
 <DocumentViewer enableSearch ref={viewerRef} />
 ```
 
-The handle is `{ openSearch, closeSearch, isSearchOpen }`; `openSearch` is a
-no-op unless `enableSearch` is set. Listening in the capture phase is what lets
+The handle is `{ openSearch, closeSearch, isSearchOpen, getSelectionAnchor }`;
+`openSearch` is a no-op unless `enableSearch` is set. Listening in the capture phase is what lets
 `Escape` close the find bar before a host-level handler closes the viewer around
 it. The viewer's own `Escape` also stops propagating once it has closed the bar,
 so a host that closes on `Escape` won't do both at once.
+
+### Linking to a passage
+
+`getSelectionAnchor()` turns whatever the user has selected in the viewer into an
+anchor you can put in a URL, and hand back to `loadDocument` later:
+
+```jsx
+const anchor = viewerRef.current?.getSelectionAnchor()
+// { text: 'Revenue increased 15%…', page: 12, matchIndex: 2 }
+
+if (anchor) {
+  const url = new URL(`/filings/${documentId}`, location.origin)
+  url.searchParams.set('excerpt', anchor.text)
+  if (anchor.page) url.searchParams.set('page', String(anchor.page))
+  if (anchor.matchIndex) url.searchParams.set('match', String(anchor.matchIndex))
+  await navigator.clipboard.writeText(url.toString())
+}
+```
+
+It returns `null` unless both ends of the selection sit inside the viewer, so a
+selection elsewhere on the page won't produce a bogus anchor. `page` and
+`matchIndex` are omitted when the page can't be determined; the excerpt alone
+still highlights, searching the whole document for the first match.
 
 Highlight colors follow the same CSS variable convention as the rest of the
 viewer:
