@@ -3,8 +3,10 @@ import {
   DocumentViewerState,
   DocumentViewerContextValue,
   Document,
-  FetchDocumentFn
+  FetchDocumentFn,
+  LoadDocumentOptions
 } from '@types';
+import { normalizeLoadDocumentArgs } from '@utils/load-document-options';
 
 // Initial state for the context
 const initialState: DocumentViewerState = {
@@ -52,20 +54,36 @@ export const DocumentViewerProvider: React.FC<DocumentViewerProviderProps> = ({
   }, []);
 
   const closeViewer = useCallback(() => {
-    setState(prev => ({ ...prev, isOpen: false, document: null, pageNumber: undefined, citationSnippet: undefined }));
+    setState(prev => ({
+      ...prev,
+      isOpen: false,
+      document: null,
+      pageNumber: undefined,
+      citationSnippet: undefined,
+      citationMatchIndex: undefined
+    }));
   }, []);
 
-  const loadDocument = useCallback(async (documentId: string, pageNumber?: number, citationSnippet?: string, legacyElementId?: string) => {
-    // Backwards compatibility: extract page number from legacyElementId if pageNumber not provided
-    let effectivePageNumber = pageNumber;
-    if (!effectivePageNumber && legacyElementId) {
-      const lastFourChars = legacyElementId.slice(-4);
-      const pageNum = parseInt(lastFourChars, 10);
-      if (!isNaN(pageNum)) {
-        effectivePageNumber = pageNum + 1; // Convert 0-based to 1-based
-      }
-    }
-    setState(prev => ({ ...prev, isLoading: true, document: null, isOpen: true, pageNumber: effectivePageNumber, citationSnippet }));
+  const loadDocument = useCallback(async (
+    documentId: string,
+    pageNumberOrOptions?: number | LoadDocumentOptions,
+    citationSnippet?: string,
+    legacyElementId?: string
+  ) => {
+    const { page, snippet, matchIndex } = normalizeLoadDocumentArgs(
+      pageNumberOrOptions,
+      citationSnippet,
+      legacyElementId
+    );
+    setState(prev => ({
+      ...prev,
+      isLoading: true,
+      document: null,
+      isOpen: true,
+      pageNumber: page,
+      citationSnippet: snippet,
+      citationMatchIndex: matchIndex
+    }));
     const fetchFn = fetchDocumentFnRef.current || providedFetchFn;
     if (!fetchFn) {
       setState(prev => ({ ...prev, isLoading: false }));

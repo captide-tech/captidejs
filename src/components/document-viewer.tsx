@@ -2,7 +2,14 @@ import React, { forwardRef, useRef, useEffect, useImperativeHandle, useState, us
 import { useDocumentViewer } from '@contexts/document-viewer-context';
 import type { DocumentViewerHandle } from '../types';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
-import { createRectangleHighlight, removeHighlight, type CurrentHighlight } from '@utils/pdf-highlighting';
+import {
+  createRectangleHighlight,
+  isHighlightConnected,
+  removeHighlight,
+  HIGHLIGHT_CLASS_NAME,
+  type CurrentHighlight
+} from '../utils/pdf-highlighting';
+import { readSelectionAnchor } from '../utils/selection-anchor';
 import Loader from '@components/shared/loader';
 import DownloadButton from '@components/shared/download-button';
 import SearchBar from '@components/shared/search-bar';
@@ -53,7 +60,8 @@ const DocumentViewer = forwardRef<DocumentViewerHandle, DocumentViewerProps>(({
     zoomOut, 
     resetZoom,
     pageNumber,
-    citationSnippet
+    citationSnippet,
+    citationMatchIndex
   } = useDocumentViewer();
   
   const containerRef = useRef<HTMLDivElement>(null);
@@ -69,10 +77,12 @@ const DocumentViewer = forwardRef<DocumentViewerHandle, DocumentViewerProps>(({
   const search = useDocumentSearch(eventBus);
   const searchRef = useRef(search);
   const enableSearchRef = useRef(enableSearch);
+  const citationSnippetRef = useRef(citationSnippet);
 
   useEffect(() => {
     searchRef.current = search;
     enableSearchRef.current = enableSearch;
+    citationSnippetRef.current = citationSnippet;
   });
 
   useImperativeHandle(ref, () => ({
@@ -81,7 +91,8 @@ const DocumentViewer = forwardRef<DocumentViewerHandle, DocumentViewerProps>(({
       searchRef.current.open();
     },
     closeSearch: () => searchRef.current.close(),
-    isSearchOpen: () => enableSearchRef.current && searchRef.current.isOpen
+    isSearchOpen: () => enableSearchRef.current && searchRef.current.isOpen,
+    getSelectionAnchor: () => readSelectionAnchor(containerRef.current)
   }), []);
   
   // Only run in browser
@@ -95,7 +106,7 @@ const DocumentViewer = forwardRef<DocumentViewerHandle, DocumentViewerProps>(({
     const style = document.createElement('style');
     style.id = 'pdf-rectangle-highlight-style';
     style.textContent = `
-      .pdf-rectangle-highlight {
+      .${HIGHLIGHT_CLASS_NAME} {
         position: absolute !important;
         background: var(--captidejs-highlight-bg, rgba(255, 235, 59, 0.3)) !important;
         border: var(--captidejs-highlight-border, 2px solid #fdcb6e) !important;
@@ -419,10 +430,14 @@ const DocumentViewer = forwardRef<DocumentViewerHandle, DocumentViewerProps>(({
                     const pageDiv = pdfViewerInstance.getPageView(pageNum - 1)?.div;
                     if (pageDiv) {
                       pageDiv.classList.add('highlighted');
-                      pageDiv.scrollIntoView({ 
-                        behavior: 'smooth', 
-                        block: 'center' 
-                      });
+                      // Centring the page would undo the citation highlight's own
+                      // scroll, which lands on the passage rather than the page.
+                      if (!citationSnippetRef.current) {
+                        pageDiv.scrollIntoView({
+                          behavior: 'smooth',
+                          block: 'center'
+                        });
+                      }
                     }
                   }
                 }, 200);
@@ -509,14 +524,15 @@ const DocumentViewer = forwardRef<DocumentViewerHandle, DocumentViewerProps>(({
   useEffect(() => {
     if (citationSnippet && viewer && !isLoading) {
       // Check if we already have a highlight for this exact text and it's still connected
-      if (currentHighlight && 
-          currentHighlight.text === citationSnippet && 
-          currentHighlight.element.isConnected) {
+      if (currentHighlight &&
+          currentHighlight.text === citationSnippet &&
+          currentHighlight.matchIndex === citationMatchIndex &&
+          isHighlightConnected(currentHighlight)) {
         return;
       }
       
       // If highlight exists but is disconnected, remove it first
-      if (currentHighlight && !currentHighlight.element.isConnected) {
+      if (currentHighlight && !isHighlightConnected(currentHighlight)) {
         removeCurrentHighlight();
       }
       
@@ -529,6 +545,7 @@ const DocumentViewer = forwardRef<DocumentViewerHandle, DocumentViewerProps>(({
           searchText: citationSnippet,
           pdfViewerInstance: viewer,
           targetPage: targetPage,
+          matchIndex: citationMatchIndex,
           currentHighlight: currentHighlight,
         });
         if (newHighlight) {
@@ -537,7 +554,7 @@ const DocumentViewer = forwardRef<DocumentViewerHandle, DocumentViewerProps>(({
         }
       })();
     }
-  }, [citationSnippet, viewer, isLoading, effectivePageNumber, currentHighlight, removeCurrentHighlight]);
+  }, [citationSnippet, citationMatchIndex, viewer, isLoading, effectivePageNumber, currentHighlight, removeCurrentHighlight]);
 
   // Clean up highlight when citationSnippet becomes null
   useEffect(() => {
@@ -561,10 +578,12 @@ const DocumentViewer = forwardRef<DocumentViewerHandle, DocumentViewerProps>(({
               const pageDiv = viewer.getPageView(pageNum - 1)?.div;
               if (pageDiv) {
                 pageDiv.classList.add('highlighted');
-                pageDiv.scrollIntoView({ 
-                  behavior: 'smooth', 
-                  block: 'center' 
-                });
+                if (!citationSnippetRef.current) {
+                  pageDiv.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                  });
+                }
               }
             }
           }, 200);
@@ -596,15 +615,14 @@ const DocumentViewer = forwardRef<DocumentViewerHandle, DocumentViewerProps>(({
     if (!currentHighlight || !citationSnippet || !viewer) return;
     
     // Only recreate if highlight is disconnected (DOM was recreated)
-    if (!currentHighlight.element.isConnected) {
-      console.log('Highlight disconnected after zoom, recreating...');
-      
+    if (!isHighlightConnected(currentHighlight)) {
       // Recreate highlight without changing page navigation
       const recreateHighlight = async () => {
         const newHighlight = await createRectangleHighlight({
           searchText: citationSnippet,
           pdfViewerInstance: viewer,
           targetPage: currentHighlight?.page,
+          matchIndex: currentHighlight?.matchIndex,
           currentHighlight,
           shouldNavigateOnMatch: false,
         });

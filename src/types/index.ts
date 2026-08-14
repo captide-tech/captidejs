@@ -30,7 +30,26 @@ export interface DocumentViewerState {
   zoomLevel: number;
   pageNumber?: number;
   citationSnippet?: string;
+  citationMatchIndex?: number;
   // legacyElementId removed - backwards compatibility handled in loadDocument
+}
+
+/**
+ * A location in a document, durable enough to put in a link. `matchIndex` is
+ * 1-based and disambiguates text that repeats on the page; without it the first
+ * match wins.
+ */
+export interface HighlightAnchor {
+  text: string;
+  page?: number;
+  matchIndex?: number;
+}
+
+export interface LoadDocumentOptions {
+  page?: number;
+  snippet?: string;
+  matchIndex?: number;
+  legacyElementId?: string;
 }
 
 // FetchDocumentFn for the new model
@@ -66,12 +85,17 @@ export interface DocumentViewerHandle {
   openSearch: () => void;
   closeSearch: () => void;
   isSearchOpen: () => boolean;
+  /** The current text selection as a linkable anchor, or null if there is none inside the viewer. */
+  getSelectionAnchor: () => HighlightAnchor | null;
 }
 
 export interface DocumentViewerContextValue extends DocumentViewerState {
   updateDocumentViewer: (updates: Partial<DocumentViewerState>) => void;
   setDocument: (document: Document | null) => void;
-  loadDocument: (documentId: string, pageNumber?: number, citationSnippet?: string, legacyElementId?: string) => Promise<void>;
+  loadDocument: {
+    (documentId: string, options?: LoadDocumentOptions): Promise<void>;
+    (documentId: string, pageNumber?: number, citationSnippet?: string, legacyElementId?: string): Promise<void>;
+  };
   setFetchDocumentFn: (fn: FetchDocumentFn) => void;
   openViewer: () => void;
   closeViewer: () => void;
