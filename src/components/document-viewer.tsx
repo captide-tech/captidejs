@@ -9,6 +9,7 @@ import {
   HIGHLIGHT_CLASS_NAME,
   type CurrentHighlight
 } from '../utils/pdf-highlighting';
+import { goToPage } from '../utils/page-navigation';
 import { readSelectionAnchor } from '../utils/selection-anchor';
 import Loader from '@components/shared/loader';
 import DownloadButton from '@components/shared/download-button';
@@ -422,7 +423,7 @@ const DocumentViewer = forwardRef<DocumentViewerHandle, DocumentViewerProps>(({
             const pageNum = effectivePageNumber;
             if (pageNum >= 1 && pageNum <= pdfViewerInstance.pagesCount) {
               try {
-                pdfViewerInstance.currentPageNumber = Number(pageNum);
+                goToPage(pdfViewerInstance, pageNum, Boolean(citationSnippetRef.current));
                 
                 // Highlight the page after a short delay
                 setTimeout(() => {
@@ -571,7 +572,7 @@ const DocumentViewer = forwardRef<DocumentViewerHandle, DocumentViewerProps>(({
       // Validate page number is within bounds
       if (pageNum >= 1 && pageNum <= viewer.pagesCount) {
         try {
-          viewer.currentPageNumber = Number(pageNum);
+          goToPage(viewer, pageNum, Boolean(citationSnippetRef.current));
           
           setTimeout(() => {
             if (viewer) {
@@ -624,7 +625,10 @@ const DocumentViewer = forwardRef<DocumentViewerHandle, DocumentViewerProps>(({
           targetPage: currentHighlight?.page,
           matchIndex: currentHighlight?.matchIndex,
           currentHighlight,
-          shouldNavigateOnMatch: false,
+          // A recreate follows a re-layout, which re-anchors the scroll and
+          // leaves the passage off its mark. Put it back for a reader still on
+          // its page; one who has scrolled elsewhere should not be dragged back.
+          shouldNavigateOnMatch: viewer.currentPageNumber === currentHighlight.page,
         });
         if (newHighlight) {
           removeCurrentHighlight();

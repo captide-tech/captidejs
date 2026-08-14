@@ -403,7 +403,10 @@ export const createRectangleHighlight = async ({
   if (elements.length === 0) return null;
 
   if (shouldNavigateOnMatch) {
-    elements[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Instant, not smooth: any re-layout that lands mid-animation (a zoom
+    // change, a neighbouring page rendering) cancels it and strands the
+    // passage part-way up the viewport.
+    elements[0].scrollIntoView({ block: 'center' });
   }
 
   return { elements, page: firstPage, text: searchText, matchIndex };
