@@ -22,8 +22,13 @@ describe('findNormalizedMatch', () => {
     expect(countOccurrences(pageText.slice(0, third!.start), normalizeText('total revenue'))).toBe(2);
   });
 
-  it('returns null when the requested occurrence does not exist', () => {
-    expect(findNormalizedMatch(pageText, normalizeText('total revenue'), 4)).toBeNull();
+  it('falls back to the first occurrence when the requested one does not exist', () => {
+    const first = findNormalizedMatch(pageText, normalizeText('total revenue'), 1);
+    expect(findNormalizedMatch(pageText, normalizeText('total revenue'), 4)).toEqual(first);
+  });
+
+  it('returns null when the text is absent, whatever the occurrence', () => {
+    expect(findNormalizedMatch(pageText, normalizeText('deferred tax'), 2)).toBeNull();
   });
 
   it('falls back to a prefix when the tail of a long excerpt does not match', () => {

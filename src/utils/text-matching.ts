@@ -35,13 +35,13 @@ export const findNormalizedMatch = (
 ): NormalizedMatch | null => {
   if (!normalizedPageText || !normalizedSearchText) return null;
 
-  for (const candidate of searchCandidates(normalizedSearchText)) {
-    const start = nthIndexOf(normalizedPageText, candidate, occurrence);
-    if (start !== -1) {
-      return { start, end: start + candidate.length };
-    }
-  }
-  return null;
+  const requested = Number.isFinite(occurrence) ? Math.max(1, occurrence) : 1;
+  const match = matchAtOccurrence(normalizedPageText, normalizedSearchText, requested);
+  if (match || requested === 1) return match;
+
+  // An occurrence index travels in a link and is resolved against a fresh text
+  // extraction, so a stale or off-by-one one must not lose the highlight.
+  return matchAtOccurrence(normalizedPageText, normalizedSearchText, 1);
 };
 
 /** How many complete occurrences of `normalizedSearchText` precede the text in `normalizedPrefix`. */
@@ -60,6 +60,20 @@ export const countOccurrences = (
   return count;
 };
 
+const matchAtOccurrence = (
+  normalizedPageText: string,
+  normalizedSearchText: string,
+  occurrence: number
+): NormalizedMatch | null => {
+  for (const candidate of searchCandidates(normalizedSearchText)) {
+    const start = nthIndexOf(normalizedPageText, candidate, occurrence);
+    if (start !== -1) {
+      return { start, end: start + candidate.length };
+    }
+  }
+  return null;
+};
+
 const searchCandidates = (normalizedSearchText: string): string[] => {
   const candidates = [normalizedSearchText];
   for (const length of SEARCH_PREFIX_LENGTHS) {
@@ -71,9 +85,8 @@ const searchCandidates = (normalizedSearchText: string): string[] => {
 };
 
 const nthIndexOf = (haystack: string, needle: string, occurrence: number): number => {
-  const target = Number.isFinite(occurrence) ? Math.max(1, occurrence) : 1;
   let index = -1;
-  for (let found = 0; found < target; found += 1) {
+  for (let found = 0; found < occurrence; found += 1) {
     index = haystack.indexOf(needle, index + 1);
     if (index === -1) return -1;
   }

@@ -96,7 +96,13 @@ const extractPageText = async (pdfViewerInstance: any, pageNumber: number): Prom
 
 type PageTextReader = (pageNumber: number) => Promise<PageText | null>;
 
-/** Pages get read twice — once alone, once as half of a page-break pair. */
+/**
+ * A page is read twice — once alone, once as half of a page-break pair — so two
+ * entries buy all the reuse there is. Keeping more would hold the text items of
+ * every page of a long filing at once.
+ */
+const CACHED_PAGES = 2;
+
 const pageTextReader = (pdfViewerInstance: any): PageTextReader => {
   const cache = new Map<number, Promise<PageText | null>>();
   return (pageNumber: number) => {
@@ -104,6 +110,9 @@ const pageTextReader = (pdfViewerInstance: any): PageTextReader => {
     if (cached) return cached;
     const pending = extractPageText(pdfViewerInstance, pageNumber);
     cache.set(pageNumber, pending);
+    if (cache.size > CACHED_PAGES) {
+      cache.delete(cache.keys().next().value as number);
+    }
     return pending;
   };
 };
@@ -210,6 +219,10 @@ export const findTextInPDF = async (
     const result = await findOnPage(readPageText, pageNumber, normalizedSearchText, matchIndex);
     if (result) return result;
   }
+
+  // Only a known page earns the pairwise pass: over a whole document it would
+  // re-scan every page, and a passage link always carries the page it came from.
+  if (!targetPage) return null;
 
   for (const pageNumber of pagesToSearch) {
     if (pageNumber >= pdfViewerInstance.pagesCount) continue;

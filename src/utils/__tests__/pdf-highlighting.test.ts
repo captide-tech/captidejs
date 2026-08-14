@@ -48,9 +48,17 @@ describe('findTextInPDF', () => {
     expect(second!.pages[0].items.map(i => i.item.transform[5])).toEqual([660]);
   });
 
+  it('falls back to the first occurrence when the requested one is gone', async () => {
+    const result = await findTextInPDF('Total revenue for the', viewer, { targetPage: 1, matchIndex: 9 });
+    expect(result!.pages[0].items.map(i => i.item.transform[5])).toEqual([700]);
+  });
+
   it('splits a match that straddles a page break', async () => {
-    const result = await findTextInPDF('year was flat. Continued on the next', viewer);
+    const straddling = 'year was flat. Continued on the next';
+    const result = await findTextInPDF(straddling, viewer, { targetPage: 1 });
     expect(result!.pages.map(p => p.page)).toEqual([1, 2]);
     expect(result!.pages[1].items[0].endFraction).toBeLessThan(1);
+
+    expect(await findTextInPDF(straddling, viewer)).toBeNull();
   });
 });
