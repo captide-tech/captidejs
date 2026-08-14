@@ -38,7 +38,15 @@ jobs:
         id: package-version
         run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
+      # A test-only or tooling change under src/ retriggers this workflow at an
+      # unchanged version, and npm rejects republishing one.
       - name: Publish to npm
-        run: npm publish --access public
+        run: |
+          if npm view "captide@$VERSION" version >/dev/null 2>&1; then
+            echo "captide@$VERSION is already on npm; nothing to publish."
+            exit 0
+          fi
+          npm publish --access public
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} 
+          VERSION: ${{ steps.package-version.outputs.VERSION }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
